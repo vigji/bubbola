@@ -16,14 +16,13 @@ bubbola/
 │   └── test_core.py
 ├── build.spec             # PyInstaller configuration
 ├── pyproject.toml         # Project configuration
-├── uv.toml               # UV configuration
 ├── Makefile              # Development tasks
 └── README.md             # This file
 ```
 
 ## Features
 
-- Modern Python project structure with `src/` layout
+- Modern Python project structure with `src/` layout (Python 3.12+)
 - PyInstaller integration for executable distribution
 - UV for fast dependency management and virtual environments
 - Ruff for fast linting and formatting
@@ -31,6 +30,8 @@ bubbola/
 - Cross-platform compatibility
 
 ## Development Setup
+
+**Requirements:** Python 3.12 or higher
 
 1. **Clone the repository:**
    ```bash

@@ -1,12 +1,12 @@
 import json
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any
 import pandas as pd
 
 # TODO left at: why some of the docs are not read here? now we do not have empty ones.
 
 
-def create_results_csv(results_dir: Optional[Path] = None) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def create_results_csv(results_dir: Path | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Load all JSON results and return DDTs and items data.
     

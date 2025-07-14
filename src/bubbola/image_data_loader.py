@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Union, List, Iterable, Dict, TypeVar, Protocol, Optional
 from pdf2image import convert_from_path, convert_from_bytes
 from PIL import Image
 from io import BytesIO
@@ -8,22 +7,14 @@ import pickle
 import os
 import base64
 
-T = TypeVar('T')
-
-class ImageConverter(Protocol):
-    def convert(self, data: Union[str, Path, bytes, Image.Image]) -> List[Image.Image]: ...
-
-class Base64Converter(Protocol):
-    def convert(self, data: Union[str, Path, bytes, Image.Image]) -> List[str]: ...
-
 class CacheManager:
-    def __init__(self, cache_dir: Optional[Path] = None):
+    def __init__(self, cache_dir: Path | None = None):
         self.cache_dir = cache_dir or Path.home() / ".cache" / "ai_bubbles"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_path = self.cache_dir / "cache.pkl"
-        self._cache: Dict[str, List[bytes]] = self._load()
+        self._cache: dict[str, list[bytes]] = self._load()
 
-    def _load(self) -> Dict[str, List[bytes]]:
+    def _load(self) -> dict[str, list[bytes]]:
         """Load the cache from disk."""
         if self.cache_path.exists():
             try:
@@ -40,11 +31,11 @@ class CacheManager:
             pickle.dump(self._cache, f)
         os.replace(temp_path, self.cache_path)
 
-    def get(self, key: str) -> Optional[List[bytes]]:
+    def get(self, key: str) -> list[bytes] | None:
         """Get a value from cache."""
         return self._cache.get(key)
 
-    def set(self, key: str, value: List[bytes]):
+    def set(self, key: str, value: list[bytes]):
         """Set a value in cache."""
         self._cache[key] = value
 
@@ -64,7 +55,7 @@ class PDFConverter:
     def __init__(self, cache_manager: CacheManager):
         self.cache_manager = cache_manager
 
-    def convert_from_path(self, path: Path) -> List[Image.Image]:
+    def convert_from_path(self, path: Path) -> list[Image.Image]:
         cache_key = self.cache_manager.compute_file_hash(path)
         cached = self.cache_manager.get(cache_key)
         if cached:
@@ -74,7 +65,7 @@ class PDFConverter:
         self.cache_manager.set(cache_key, [_serialize_image(img) for img in images])
         return images
 
-    def convert_from_bytes(self, data: bytes) -> List[Image.Image]:
+    def convert_from_bytes(self, data: bytes) -> list[Image.Image]:
         cache_key = self.cache_manager.compute_bytes_hash(data)
         cached = self.cache_manager.get(cache_key)
         if cached:
@@ -85,11 +76,11 @@ class PDFConverter:
         return images
 
 class ImageLoader:
-    def __init__(self, pdf_converter: PDFConverter, max_edge_size: Optional[int] = None):
+    def __init__(self, pdf_converter: PDFConverter, max_edge_size: int | None = None):
         self.pdf_converter = pdf_converter
         self.max_edge_size = max_edge_size
 
-    def load(self, data: Union[str, Path, bytes, Image.Image]) -> List[Image.Image]:
+    def load(self, data: str | Path | bytes | Image.Image) -> list[Image.Image]:
         if isinstance(data, (str, Path)):
             path = Path(data)
             if not path.exists():
@@ -116,7 +107,7 @@ class Base64ImageLoader:
     def __init__(self, image_loader: ImageLoader):
         self.image_loader = image_loader
 
-    def load(self, data: Union[str, Path, bytes, Image.Image]) -> List[str]:
+    def load(self, data: str | Path | bytes | Image.Image) -> list[str]:
         images = self.image_loader.load(data)
         return [_image_to_base64(img) for img in images]
 
@@ -136,7 +127,7 @@ def _image_to_base64(img: Image.Image) -> str:
     img.save(img_bytes, format='PNG')
     return base64.b64encode(img_bytes.getvalue()).decode('utf-8')
 
-def _resize_image(img: Image.Image, max_edge_size: Optional[int] = None) -> Image.Image:
+def _resize_image(img: Image.Image, max_edge_size: int | None = None) -> Image.Image:
     """Resize image maintaining aspect ratio if max_edge_size is specified."""
     if max_edge_size is None:
         return img
@@ -155,10 +146,10 @@ def _resize_image(img: Image.Image, max_edge_size: Optional[int] = None) -> Imag
     return img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
 def sanitize_to_images(
-    input_data: Union[str, Path, bytes, Image.Image, Iterable, None],
+    input_data: str | Path | bytes | Image.Image | Iterable | None,
     return_as_base64: bool = False,
-    max_edge_size: Optional[int] = None
-) -> Dict[str, Union[Image.Image, str]]:
+    max_edge_size: int | None = None
+) -> dict[str, Image.Image | str]:
     """Convert various input types into a dictionary of PIL Images or base64 strings.
     
     Handles:

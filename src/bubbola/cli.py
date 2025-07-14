@@ -1,11 +1,10 @@
 import sys
 from pathlib import Path
-from typing import Optional
 
 from .core import BubbolaApp
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """Main entry point for the CLI application."""
     if argv is None:
         argv = sys.argv[1:]
