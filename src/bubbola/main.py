@@ -1,19 +1,17 @@
-from pydantic import BaseModel, Field
-from pathlib import Path
-from ai_bubbles.pydantic_model.base import DeliveryNote
-from ai_bubbles.model_creator import get_client_response_function
-from datetime import datetime
-import json
-import base64
-from tqdm import tqdm
 import argparse
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
-import threading
+import base64
+import json
 import signal
-import time
-from load_results import create_results_csv
+import threading
+from concurrent.futures import ThreadPoolExecutor, TimeoutError, as_completed
+from datetime import datetime
+from pathlib import Path
 
+from ai_bubbles.model_creator import get_client_response_function
 from image_data_loader import sanitize_to_images
+from load_results import create_results_csv
+from pydantic import BaseModel, Field
+from tqdm import tqdm
 
 # Global lock for thread-safe token counting
 token_lock = threading.Lock()
@@ -21,11 +19,13 @@ token_lock = threading.Lock()
 # Global flag for graceful shutdown
 shutdown_requested = False
 
+
 def signal_handler(signum, frame):
     """Handle interrupt signals gracefully."""
     global shutdown_requested
     print(f"\nReceived signal {signum}. Initiating graceful shutdown...")
     shutdown_requested = True
+
 
 # Set up signal handlers
 signal.signal(signal.SIGINT, signal_handler)
@@ -39,6 +39,7 @@ Unit of capacity of the item. Found in column 'units', 'unità', 'UM', etc, has 
 It is usually - but not always - in metric units.
 DO NOT ASSUME if not found, unless the item is concrete. For concrete, assume M3
 """
+
 
 class DeliveryItem(BaseModel):
     item_name: str | None = Field(
@@ -85,8 +86,14 @@ class DeliveryNote(BaseModel):
     )  # Summary of your reasoning
 
 
-valid_suppliers_list = [["Nome", "Indirizzo", "Partita IVA"],
-    ["LG Concrete S.r.L.", "33050 Castions di Strada (UD) Via Udine,104", "03089360303"]]
+valid_suppliers_list = [
+    ["Nome", "Indirizzo", "Partita IVA"],
+    [
+        "LG Concrete S.r.L.",
+        "33050 Castions di Strada (UD) Via Udine,104",
+        "03089360303",
+    ],
+]
 
 valid_suppliers_csv_text = "\n".join([",".join(row) for row in valid_suppliers_list])
 valid_suppliers = [row[0] for row in valid_suppliers_list]
@@ -133,8 +140,8 @@ Your task is to read the delivery note **carefully** and fill in the following J
 ### Step-by-step instructions:
 
 #### STEP 1: Identify the Supplier
-- Look in the image for the name or VAT number (**partita IVA**) of a company. 
-  Make sure you consider all the possible company names (also from logos). Investigate and keep track all the options you see. 
+- Look in the image for the name or VAT number (**partita IVA**) of a company.
+  Make sure you consider all the possible company names (also from logos). Investigate and keep track all the options you see.
   Ignore ICOP or any of its variations; that is the receiver.
 - Compare what you find with the list in the CSV, but make sure you ignore small differences like:
   - Capital letters vs lowercase
@@ -184,9 +191,17 @@ Return only the JSON entries, not the full Pydantic schema! Copy a summary of yo
 """
 
 
-
-
-def process_single_image(name, base64_image, results_dir, system_prompt, response_function, response_format, model_name, timeout=60, max_retries=5):
+def process_single_image(
+    name,
+    base64_image,
+    results_dir,
+    system_prompt,
+    response_function,
+    response_format,
+    model_name,
+    timeout=60,
+    max_retries=5,
+):
     """Process a single image and return the token counts and retry stats."""
     kwargs = {
         "model": model_name,
@@ -194,7 +209,7 @@ def process_single_image(name, base64_image, results_dir, system_prompt, respons
         "temperature": 0.0,
     }
 
-    #if model_name == "gpt-4o-mini" or model_name == "meta-llama/llama-4-scout":
+    # if model_name == "gpt-4o-mini" or model_name == "meta-llama/llama-4-scout":
     #    kwargs["temperature"] = 0.0
 
     messages = [
@@ -213,53 +228,65 @@ def process_single_image(name, base64_image, results_dir, system_prompt, respons
         },
     ]
     kwargs.update(messages=messages)
-    
+
     total_input_tokens = 0
     total_output_tokens = 0
     retry_count = 0
     retry_input_tokens = 0
     retry_output_tokens = 0
-    
+
     for attempt in range(max_retries + 1):
         try:
             response = response_function(**kwargs)
-            
+
             # Track tokens for this attempt
             attempt_input_tokens = response.usage.prompt_tokens
             attempt_output_tokens = response.usage.completion_tokens
             total_input_tokens += attempt_input_tokens
             total_output_tokens += attempt_output_tokens
-            
+
             # Check if response is empty and validate with Pydantic model
             response_content = response.choices[0].message.content
             is_valid_response = False
-            
+
             if response_content and response_content.strip():
                 try:
                     # Try to parse the JSON and validate with Pydantic model
                     parsed_json = json.loads(response_content)
-                    
+
                     # Check if response is actually the schema instead of data
-                    if isinstance(parsed_json, dict) and ("$defs" in parsed_json or "properties" in parsed_json):
-                        print(f"Response contains schema instead of data for {name}, attempt {attempt + 1}. Retrying...")
+                    if isinstance(parsed_json, dict) and (
+                        "$defs" in parsed_json or "properties" in parsed_json
+                    ):
+                        print(
+                            f"Response contains schema instead of data for {name}, attempt {attempt + 1}. Retrying..."
+                        )
                         is_valid_response = False
                     else:
                         DeliveryNote.model_validate(parsed_json)
                         is_valid_response = True
                 except (json.JSONDecodeError, ValueError) as e:
-                    print(f"Invalid JSON or Pydantic validation failed for {name}, attempt {attempt + 1}: {e}")
+                    print(
+                        f"Invalid JSON or Pydantic validation failed for {name}, attempt {attempt + 1}: {e}"
+                    )
                     is_valid_response = False
-            
+
             if is_valid_response:
                 # Valid response, save and return
                 with open(results_dir / f"response_{name}.json", "w") as f:
                     json.dump(response_content, f)
-                
+
                 # save also copy of the image with the response
                 with open(results_dir / f"response_{name}.png", "wb") as f:
                     f.write(base64.b64decode(base64_image))
-                
-                return total_input_tokens, total_output_tokens, retry_count, retry_input_tokens, retry_output_tokens
+
+                return (
+                    total_input_tokens,
+                    total_output_tokens,
+                    retry_count,
+                    retry_input_tokens,
+                    retry_output_tokens,
+                )
             else:
                 # Invalid or empty response, prepare for retry
                 if attempt < max_retries:
@@ -267,27 +294,37 @@ def process_single_image(name, base64_image, results_dir, system_prompt, respons
                     retry_input_tokens += attempt_input_tokens
                     retry_output_tokens += attempt_output_tokens
                     if not response_content or not response_content.strip():
-                        print(f"Empty response for {name}, attempt {attempt + 1}/{max_retries + 1}. Retrying...")
+                        print(
+                            f"Empty response for {name}, attempt {attempt + 1}/{max_retries + 1}. Retrying..."
+                        )
                     else:
-                        print(f"Invalid response for {name}, attempt {attempt + 1}/{max_retries + 1}. Retrying...")
+                        print(
+                            f"Invalid response for {name}, attempt {attempt + 1}/{max_retries + 1}. Retrying..."
+                        )
                 else:
                     # Max retries reached, save invalid response
                     print(f"Max retries reached for {name}. Saving invalid response.")
                     with open(results_dir / f"response_{name}.json", "w") as f:
                         json.dump(response_content if response_content else "", f)
-                    
+
                     # save also copy of the image with the response
                     with open(results_dir / f"response_{name}.png", "wb") as f:
                         f.write(base64.b64decode(base64_image))
-                    
-                    return total_input_tokens, total_output_tokens, retry_count, retry_input_tokens, retry_output_tokens
-                    
+
+                    return (
+                        total_input_tokens,
+                        total_output_tokens,
+                        retry_count,
+                        retry_input_tokens,
+                        retry_output_tokens,
+                    )
+
         except Exception as e:
             print(f"API call failed for {name} on attempt {attempt + 1}: {e}")
             if attempt == max_retries:
                 raise
             # For non-final attempts, track tokens if response object exists
-            if 'response' in locals():
+            if "response" in locals():
                 attempt_input_tokens = response.usage.prompt_tokens
                 attempt_output_tokens = response.usage.completion_tokens
                 total_input_tokens += attempt_input_tokens
@@ -296,7 +333,18 @@ def process_single_image(name, base64_image, results_dir, system_prompt, respons
                 retry_input_tokens += attempt_input_tokens
                 retry_output_tokens += attempt_output_tokens
 
-def process_images_parallel(to_process, results_dir, system_prompt, response_function, response_format, model_name, max_workers=10, timeout=300, max_retries=5):
+
+def process_images_parallel(
+    to_process,
+    results_dir,
+    system_prompt,
+    response_function,
+    response_format,
+    model_name,
+    max_workers=10,
+    timeout=300,
+    max_retries=5,
+):
     """Process images in parallel and return total token counts and retry statistics."""
     global shutdown_requested
     total_input_tokens = 0
@@ -305,39 +353,47 @@ def process_images_parallel(to_process, results_dir, system_prompt, response_fun
     total_retry_input_tokens = 0
     total_retry_output_tokens = 0
     failed_images = []
-    
+
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
         future_to_name = {
             executor.submit(
-                process_single_image, 
-                name, 
-                base64_image, 
-                results_dir, 
-                system_prompt, 
-                response_function, 
-                response_format, 
+                process_single_image,
+                name,
+                base64_image,
+                results_dir,
+                system_prompt,
+                response_function,
+                response_format,
                 model_name,
                 timeout,
-                max_retries
-            ): name 
+                max_retries,
+            ): name
             for name, base64_image in to_process.items()
         }
-        
+
         # Process completed tasks with progress bar and timeout
         completed_count = 0
         total_tasks = len(future_to_name)
-        
+
         with tqdm(total=total_tasks, desc="Processing images") as pbar:
             try:
-                for future in as_completed(future_to_name, timeout=timeout * len(future_to_name)):
+                for future in as_completed(
+                    future_to_name, timeout=timeout * len(future_to_name)
+                ):
                     if shutdown_requested:
                         print("\nShutdown requested, cancelling remaining tasks...")
                         break
-                        
+
                     name = future_to_name[future]
                     try:
-                        input_tokens, output_tokens, retry_count, retry_input_tokens, retry_output_tokens = future.result(timeout=timeout)
+                        (
+                            input_tokens,
+                            output_tokens,
+                            retry_count,
+                            retry_input_tokens,
+                            retry_output_tokens,
+                        ) = future.result(timeout=timeout)
                         with token_lock:
                             total_input_tokens += input_tokens
                             total_output_tokens += output_tokens
@@ -357,38 +413,48 @@ def process_images_parallel(to_process, results_dir, system_prompt, response_fun
             except KeyboardInterrupt:
                 print("\nKeyboard interrupt detected during processing")
                 shutdown_requested = True
-        
+
         # Cancel any remaining futures
         for future in future_to_name:
             if not future.done():
                 future.cancel()
                 if shutdown_requested:
                     print(f"Cancelled processing for {future_to_name[future]}")
-    
+
     if failed_images:
         print(f"Failed to process {len(failed_images)} images: {failed_images}")
-    
-    if shutdown_requested:
-        print(f"Processing interrupted. Completed {completed_count}/{total_tasks} images.")
-    
-    return total_input_tokens, total_output_tokens, total_retry_count, total_retry_input_tokens, total_retry_output_tokens
 
-#system_prompt = "Extract items from the delivery note, following this schema: {DeliveryNote.model_json_schema()}"
+    if shutdown_requested:
+        print(
+            f"Processing interrupted. Completed {completed_count}/{total_tasks} images."
+        )
+
+    return (
+        total_input_tokens,
+        total_output_tokens,
+        total_retry_count,
+        total_retry_input_tokens,
+        total_retry_output_tokens,
+    )
+
+
+# system_prompt = "Extract items from the delivery note, following this schema: {DeliveryNote.model_json_schema()}"
 
 if __name__ == "__main__":
     data_dir = Path("/Users/vigji/Desktop/pages_sample-data/concrete")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     commessa = "1502"
     bolle_dir = data_dir / commessa / "bolle"
-    files_to_process = sorted(list(bolle_dir.glob("*.pdf")))# [0]
+    files_to_process = sorted(list(bolle_dir.glob("*.pdf")))  # [0]
     # print(sample_file)
     # assert False
 
     start_time = datetime.now()
 
-    to_process = sanitize_to_images(files_to_process, return_as_base64=True, 
-                                    max_edge_size=1000)
-    model_name =  "o4-mini"  # "o4-mini"  #  "o3"  # "meta-llama/llama-4-scout"  # "o3"  #  "o4-mini" #"meta-llama/llama-4-scout"  # "o4-mini"  #  "gpt-4o-mini"  # "test"  # Change this to your desired model
+    to_process = sanitize_to_images(
+        files_to_process, return_as_base64=True, max_edge_size=1000
+    )
+    model_name = "o4-mini"  # "o4-mini"  #  "o3"  # "meta-llama/llama-4-scout"  # "o3"  #  "o4-mini" #"meta-llama/llama-4-scout"  # "o4-mini"  #  "gpt-4o-mini"  # "test"  # Change this to your desired model
 
     N_TO_PROCESS = None  # 13  #  # 13  # len(to_process)  # 1
 
@@ -396,7 +462,9 @@ if __name__ == "__main__":
         N_TO_PROCESS = len(to_process)
     print(f"N_TO_PROCESS: {N_TO_PROCESS}")
 
-    results_dir = data_dir / commessa / "results" / f"{model_name.split('/')[-1]}_{timestamp}"
+    results_dir = (
+        data_dir / commessa / "results" / f"{model_name.split('/')[-1]}_{timestamp}"
+    )
     results_dir.mkdir(parents=True, exist_ok=True)
 
     # Process each image
@@ -405,24 +473,47 @@ if __name__ == "__main__":
     )
 
     # Parse command line arguments for parallel processing
-    parser = argparse.ArgumentParser(description='Process delivery notes with parallel requests')
-    parser.add_argument('--max-workers', type=int, default=10, help='Maximum number of parallel requests (default: 10)')
-    parser.add_argument('--timeout', type=int, default=300, help='Timeout in seconds for each request (default: 300)')
-    parser.add_argument('--max-retries', type=int, default=5, help='Maximum number of retries for empty responses (default: 5)')
+    parser = argparse.ArgumentParser(
+        description="Process delivery notes with parallel requests"
+    )
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=10,
+        help="Maximum number of parallel requests (default: 10)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=300,
+        help="Timeout in seconds for each request (default: 300)",
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=5,
+        help="Maximum number of retries for empty responses (default: 5)",
+    )
     args, unknown = parser.parse_known_args()
 
     # Process images in parallel
     items_to_process = dict(list(to_process.items())[:N_TO_PROCESS])
-    total_input_tokens, total_output_tokens, total_retry_count, total_retry_input_tokens, total_retry_output_tokens = process_images_parallel(
-        items_to_process, 
-        results_dir, 
-        system_prompt, 
-        response_function, 
-        response_format, 
-        model_name, 
+    (
+        total_input_tokens,
+        total_output_tokens,
+        total_retry_count,
+        total_retry_input_tokens,
+        total_retry_output_tokens,
+    ) = process_images_parallel(
+        items_to_process,
+        results_dir,
+        system_prompt,
+        response_function,
+        response_format,
+        model_name,
         max_workers=args.max_workers,
         timeout=args.timeout,
-        max_retries=args.max_retries
+        max_retries=args.max_retries,
     )
 
     end_time = datetime.now()
@@ -433,7 +524,9 @@ if __name__ == "__main__":
     print(f"Retry input tokens: {total_retry_input_tokens}")
     print(f"Retry output tokens: {total_retry_output_tokens}")
     if total_input_tokens > 0:
-        print(f"Retry percentage of total tokens: {((total_retry_input_tokens + total_retry_output_tokens) / (total_input_tokens + total_output_tokens) * 100):.1f}%")
+        print(
+            f"Retry percentage of total tokens: {((total_retry_input_tokens + total_retry_output_tokens) / (total_input_tokens + total_output_tokens) * 100):.1f}%"
+        )
 
     with open(results_dir / f"batch_log_{timestamp}.txt", "w") as f:
         json.dump(
@@ -455,4 +548,3 @@ if __name__ == "__main__":
     ddts_data, items_data = create_results_csv(results_dir)
     print(f"DDTs: {len(ddts_data)}")
     print(f"Items: {len(items_data)}")
-

@@ -20,15 +20,6 @@ bubbola/
 └── README.md             # This file
 ```
 
-## Features
-
-- Modern Python project structure with `src/` layout (Python 3.12+)
-- PyInstaller integration for executable distribution
-- UV for fast dependency management and virtual environments
-- Ruff for fast linting and formatting
-- Type hints and static analysis with mypy
-- Cross-platform compatibility
-
 ## Development Setup
 
 **Requirements:** Python 3.12
@@ -47,55 +38,6 @@ bubbola/
 
 **Important:** UV automatically creates and manages virtual environments. If you're currently in an existing environment (like conda), UV will create a separate environment for this project. You don't need to manually create or activate virtual environments - UV handles this automatically.
 
-## Usage
-
-### Development
-
-- **Run the application:**
-  ```bash
-  make run
-  # or
-  uv run python -m bubbola.cli
-  ```
-
-- **Run tests:**
-  ```bash
-  make test
-  ```
-
-- **Format and lint code:**
-  ```bash
-  make format
-  ```
-
-- **Lint code only:**
-  ```bash
-  make lint
-  ```
-
-- **Clean build artifacts:**
-  ```bash
-  make clean
-  ```
-
-### Building Executables
-
-1. **Build the executable:**
-   ```bash
-   make build
-   ```
-
-2. **Run the built executable:**
-   ```bash
-   make run-exe
-   ```
-
-The executable will be created in the `dist/bubbola/` directory.
-
-## Available Commands
-
-- `bubbola version` - Show version information
-- `bubbola help` - Show help message
 
 ## Development Tools
 
@@ -144,15 +86,3 @@ This project uses Ruff for linting and formatting:
 ## Configuration
 
 The application stores configuration in `~/.bubbola/config.json`. The directory is created automatically on first run.
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests and linting: `make test && make lint`
-5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

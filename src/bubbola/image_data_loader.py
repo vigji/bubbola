@@ -1,11 +1,13 @@
-from pathlib import Path
-from pdf2image import convert_from_path, convert_from_bytes
-from PIL import Image
-from io import BytesIO
-import hashlib
-import pickle
-import os
 import base64
+import hashlib
+import os
+import pickle
+from io import BytesIO
+from pathlib import Path
+from typing import Iterable
+from pdf2image import convert_from_bytes, convert_from_path
+from PIL import Image
+
 
 class CacheManager:
     def __init__(self, cache_dir: Path | None = None):
@@ -18,7 +20,7 @@ class CacheManager:
         """Load the cache from disk."""
         if self.cache_path.exists():
             try:
-                with open(self.cache_path, 'rb') as f:
+                with open(self.cache_path, "rb") as f:
                     return pickle.load(f)
             except:
                 return {}
@@ -26,8 +28,8 @@ class CacheManager:
 
     def save(self):
         """Save the cache to disk."""
-        temp_path = self.cache_path.with_suffix('.tmp')
-        with open(temp_path, 'wb') as f:
+        temp_path = self.cache_path.with_suffix(".tmp")
+        with open(temp_path, "wb") as f:
             pickle.dump(self._cache, f)
         os.replace(temp_path, self.cache_path)
 
@@ -51,6 +53,7 @@ class CacheManager:
         """Compute SHA256 hash of bytes for cache key."""
         return hashlib.sha256(data).hexdigest()
 
+
 class PDFConverter:
     def __init__(self, cache_manager: CacheManager):
         self.cache_manager = cache_manager
@@ -60,7 +63,7 @@ class PDFConverter:
         cached = self.cache_manager.get(cache_key)
         if cached:
             return [_deserialize_image(img_bytes) for img_bytes in cached]
-        
+
         images = convert_from_path(str(path))
         self.cache_manager.set(cache_key, [_serialize_image(img) for img in images])
         return images
@@ -70,10 +73,11 @@ class PDFConverter:
         cached = self.cache_manager.get(cache_key)
         if cached:
             return [_deserialize_image(img_bytes) for img_bytes in cached]
-        
+
         images = convert_from_bytes(data)
         self.cache_manager.set(cache_key, [_serialize_image(img) for img in images])
         return images
+
 
 class ImageLoader:
     def __init__(self, pdf_converter: PDFConverter, max_edge_size: int | None = None):
@@ -81,27 +85,28 @@ class ImageLoader:
         self.max_edge_size = max_edge_size
 
     def load(self, data: str | Path | bytes | Image.Image) -> list[Image.Image]:
-        if isinstance(data, (str, Path)):
+        if isinstance(data, str | Path):
             path = Path(data)
             if not path.exists():
                 raise FileNotFoundError(f"File not found: {path}")
-            
-            if path.suffix.lower() == '.pdf':
+
+            if path.suffix.lower() == ".pdf":
                 images = self.pdf_converter.convert_from_path(path)
                 return [_resize_image(img, self.max_edge_size) for img in images]
             return [_resize_image(Image.open(path), self.max_edge_size)]
-        
+
         if isinstance(data, bytes):
-            try:
-                images = self.pdf_converter.convert_from_bytes(data)
-                return [_resize_image(img, self.max_edge_size) for img in images]
-            except:
-                return [_resize_image(Image.open(BytesIO(data)), self.max_edge_size)]
-        
+            # try:
+            images = self.pdf_converter.convert_from_bytes(data)
+            return [_resize_image(img, self.max_edge_size) for img in images]
+            # except:
+            #     return [_resize_image(Image.open(BytesIO(data)), self.max_edge_size)]
+
         if isinstance(data, Image.Image):
             return [_resize_image(data, self.max_edge_size)]
-        
+
         raise ValueError(f"Unsupported input type: {type(data)}")
+
 
 class Base64ImageLoader:
     def __init__(self, image_loader: ImageLoader):
@@ -111,93 +116,100 @@ class Base64ImageLoader:
         images = self.image_loader.load(data)
         return [_image_to_base64(img) for img in images]
 
+
 def _serialize_image(img: Image.Image) -> bytes:
     """Convert PIL Image to bytes for caching."""
     img_bytes = BytesIO()
-    img.save(img_bytes, format='PNG')
+    img.save(img_bytes, format="PNG")
     return img_bytes.getvalue()
+
 
 def _deserialize_image(img_bytes: bytes) -> Image.Image:
     """Convert bytes back to PIL Image."""
     return Image.open(BytesIO(img_bytes))
 
+
 def _image_to_base64(img: Image.Image) -> str:
     """Convert PIL Image to base64 string."""
     img_bytes = BytesIO()
-    img.save(img_bytes, format='PNG')
-    return base64.b64encode(img_bytes.getvalue()).decode('utf-8')
+    img.save(img_bytes, format="PNG")
+    return base64.b64encode(img_bytes.getvalue()).decode("utf-8")
+
 
 def _resize_image(img: Image.Image, max_edge_size: int | None = None) -> Image.Image:
     """Resize image maintaining aspect ratio if max_edge_size is specified."""
     if max_edge_size is None:
         return img
-    
+
     width, height = img.size
     if width <= max_edge_size and height <= max_edge_size:
         return img
-    
+
     if width > height:
         new_width = max_edge_size
         new_height = int(height * (max_edge_size / width))
     else:
         new_height = max_edge_size
         new_width = int(width * (max_edge_size / height))
-    
+
     return img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
 
 def sanitize_to_images(
     input_data: str | Path | bytes | Image.Image | Iterable | None,
     return_as_base64: bool = False,
-    max_edge_size: int | None = None
+    max_edge_size: int | None = None,
 ) -> dict[str, Image.Image | str]:
     """Convert various input types into a dictionary of PIL Images or base64 strings.
-    
+
     Handles:
     - Path/string to PDF, image file
     - Raw bytes of PDF or image
     - PIL Image objects
     - Iterables containing any of the above
-    
+
     Uses persistent caching for PDF conversions to improve performance on subsequent runs.
-    
+
     Args:
         input_data: Input data to convert
         return_as_base64: If True, returns base64 encoded strings instead of PIL Images
         max_edge_size: If specified, images will be resized so that their largest edge
                       is at most this many pixels, maintaining aspect ratio
-    
+
     Returns:
         Dictionary with keys formatted as "filename_XXX" where XXX is the page number
         with leading zeros. For single images, the key will be "filename_001".
     """
     if input_data is None:
         return {}
-    
-    if isinstance(input_data, Iterable) and not isinstance(input_data, (str, bytes, Path)):
+
+    if isinstance(input_data, Iterable) and not isinstance(
+        input_data, str | bytes | Path
+    ):
         result = {}
         for item in input_data:
             result.update(sanitize_to_images(item, return_as_base64, max_edge_size))
         return result
-    
+
     cache_manager = CacheManager()
     pdf_converter = PDFConverter(cache_manager)
     image_loader = ImageLoader(pdf_converter, max_edge_size)
-    
+
     if return_as_base64:
         loader = Base64ImageLoader(image_loader)
     else:
         loader = image_loader
-    
+
     try:
         images = loader.load(input_data)
         result = {}
-        
+
         # Get base filename
-        if isinstance(input_data, (str, Path)):
+        if isinstance(input_data, str | Path):
             base_name = Path(input_data).stem
         else:
             base_name = "image"
-        
+
         # Handle single image case
         if len(images) == 1:
             result[f"{base_name}_001"] = images[0]
@@ -205,7 +217,7 @@ def sanitize_to_images(
             # Handle multiple images (e.g., from PDF)
             for i, img in enumerate(images, 1):
                 result[f"{base_name}_{i:03d}"] = img
-        
+
         if return_as_base64:
             cache_manager.save()
         return result
@@ -216,19 +228,24 @@ def sanitize_to_images(
 
 
 if __name__ == "__main__":
-    from pprint import pprint
     import time
-    sample_pdf = Path("/Users/vigji/Desktop/pages_sample-data/concrete/1461/bolle/20250512124945.pdf")
-    another_sample = Path("/Users/vigji/Desktop/pages_sample-data/concrete/1461/bolle/20250512125121.pdf")
+    from pprint import pprint
 
-    print("First run (no cache, with resizing):") 
-    start_time = time.time()    
+    sample_pdf = Path(
+        "/Users/vigji/Desktop/pages_sample-data/concrete/1461/bolle/20250512124945.pdf"
+    )
+    another_sample = Path(
+        "/Users/vigji/Desktop/pages_sample-data/concrete/1461/bolle/20250512125121.pdf"
+    )
+
+    print("First run (no cache, with resizing):")
+    start_time = time.time()
     sample_images = sanitize_to_images([sample_pdf, another_sample], max_edge_size=1000)
-    
+
     print(f"Found {len(sample_images)} images")
     pprint([s.size for s in sample_images.values()])
     print(f"Time taken: {time.time() - start_time} seconds")
-    
+
     print("\nSecond run (should use cache, with resizing):")
     start_time = time.time()
     sample_images = sanitize_to_images([sample_pdf, another_sample], max_edge_size=1000)
