@@ -31,7 +31,7 @@ bubbola/
 
 ## Development Setup
 
-**Requirements:** Python 3.12 or higher
+**Requirements:** Python 3.12
 
 1. **Clone the repository:**
    ```bash
@@ -43,13 +43,9 @@ bubbola/
    ```bash
    uv sync
    ```
+   This will automatically create a new virtual environment with Python 3.12+ and install all dependencies (including development dependencies).
 
-3. **Install development dependencies:**
-   ```bash
-   make install-dev
-   # or manually:
-   # uv pip install -e ".[dev]"
-   ```
+**Important:** UV automatically creates and manages virtual environments. If you're currently in an existing environment (like conda), UV will create a separate environment for this project. You don't need to manually create or activate virtual environments - UV handles this automatically.
 
 ## Usage
 
@@ -124,7 +120,6 @@ This project uses Ruff for linting and formatting:
 1. **Start development:**
    ```bash
    uv sync
-   make install-dev
    ```
 
 2. **Make changes to the code**
