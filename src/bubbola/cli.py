@@ -1,5 +1,3 @@
-"""Command-line interface for Bubbola."""
-
 import sys
 from pathlib import Path
 from typing import Optional

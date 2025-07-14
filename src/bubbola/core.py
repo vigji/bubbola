@@ -1,5 +1,3 @@
-"""Core application logic for Bubbola."""
-
 from pathlib import Path
 from typing import Any
 
