@@ -2,9 +2,10 @@ import base64
 import hashlib
 import os
 import pickle
+from collections.abc import Iterable
 from io import BytesIO
 from pathlib import Path
-from typing import Iterable
+
 from pdf2image import convert_from_bytes, convert_from_path
 from PIL import Image
 
@@ -19,11 +20,9 @@ class CacheManager:
     def _load(self) -> dict[str, list[bytes]]:
         """Load the cache from disk."""
         if self.cache_path.exists():
-            try:
-                with open(self.cache_path, "rb") as f:
-                    return pickle.load(f)
-            except:
-                return {}
+            with open(self.cache_path, "rb") as f:
+                return pickle.load(f)
+
         return {}
 
     def save(self):

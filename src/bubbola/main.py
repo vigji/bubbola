@@ -445,7 +445,7 @@ if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     commessa = "1502"
     bolle_dir = data_dir / commessa / "bolle"
-    files_to_process = sorted(list(bolle_dir.glob("*.pdf")))  # [0]
+    files_to_process = sorted(bolle_dir.glob("*.pdf"))  # [0]
     # print(sample_file)
     # assert False
 

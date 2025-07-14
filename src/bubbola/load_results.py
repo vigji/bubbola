@@ -31,7 +31,7 @@ def create_results_csv(
     ddts_list = []
     items_list = []
 
-    for json_file in sorted(list(results_dir.glob("response_*.json"))):
+    for json_file in sorted(results_dir.glob("response_*.json")):
         with open(json_file, encoding="utf-8") as f:
             try:
                 content = json.load(f)
