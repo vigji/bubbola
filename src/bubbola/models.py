@@ -73,32 +73,30 @@ MODEL_PRICES = {
 PRICE_PER_X_TOKENS = 1_000_000
 
 
-def get_per_token_price(model):
+def get_per_token_price(model_name):
     # check prices no more than 6 months old
     if MODEL_PROCES_TIMESTAMP < datetime.now() - timedelta(days=180):  # 6 months
         print(
             "Model prices are more than 6 months old; price estimate will not be available"
         )
-        return 0
+        return None
 
-    if MODEL_PROCES_TIMESTAMP not in MODEL_PRICES:
+    if model_name not in MODEL_PRICES:
         print(
-            f"Model {model} not found in MODEL_PRICES; price estimate will not be available"
+            f"Model {model_name} not found in MODEL_PRICES; price estimate will not be available"
         )
-        return 0
+        return None
 
-    return MODEL_PRICES[model]
-
-
-def get_cost_estimate(model, prompt, completion):
-    p = get_per_token_price(model)
-    return (prompt * p["in"] + completion * p["out"]) / PRICE_PER_X_TOKENS
+    return MODEL_PRICES[model_name]
 
 
-def get_model_client_response(
-    model_name: str, response_scheme=None, batch=False, force_openrouter=False
-):
-    model_class = MODEL_NAME_TO_CLASS_MAP[model_name]
-    return model_class.client(
-        api_key=model_class.api_key, base_url=model_class.base_url
-    )
+def get_cost_estimate(model_name, prompt, completion_template):
+    p = get_per_token_price(model_name)
+    if p is None:
+        return None
+    return (prompt * p["in"] + completion_template * p["out"]) / PRICE_PER_X_TOKENS
+
+
+if __name__ == "__main__":
+    print(get_per_token_price("gpt-4o-mini"))
+    print(get_cost_estimate("gpt-4o-mini", 1000000, 1000000))
