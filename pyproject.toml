@@ -22,6 +22,8 @@ classifiers = [
 dependencies = [
     "pymupdf>=1.23.0",
     "Pillow>=10.0.0",
+    "openai>=1.0.0",
+    "requests>=2.32.3",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +32,7 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
     "pre-commit>=4.2.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.scripts]
