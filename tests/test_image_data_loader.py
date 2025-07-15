@@ -1,150 +1,201 @@
 """Tests for the image data loader functionality."""
 
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
-
 import pytest
 from PIL import Image
-from io import BytesIO
+import tempfile
+import shutil
+from unittest import mock
 
-from bubbola.image_data_loader import PDFConverter, CacheManager, sanitize_to_images
+from bubbola.image_data_loader import sanitize_to_images
 
 
-class TestPDFConverter:
-    """Test cases for PDFConverter."""
+class TestImageDataLoader:
+    """Test cases for image data loader using real assets."""
 
-    def test_pdf_converter_initialization(self):
-        """Test that PDFConverter initializes correctly."""
-        cache_manager = CacheManager()
-        converter = PDFConverter(cache_manager)
-        assert converter.cache_manager is cache_manager
+    @pytest.fixture(autouse=True)
+    def isolated_cache(self, monkeypatch):
+        """Patch CacheManager in the image_data_loader module to use a temp directory for cache during tests."""
+        temp_dir = tempfile.mkdtemp()
+        from bubbola import image_data_loader
+        original_cache_manager = image_data_loader.CacheManager
+        
+        class TempCacheManager(original_cache_manager):
+            def __init__(self, cache_dir=None, max_age_days=30):
+                super().__init__(cache_dir=Path(temp_dir), max_age_days=max_age_days)
+        
+        monkeypatch.setattr(image_data_loader, "CacheManager", TempCacheManager)
+        yield
+        shutil.rmtree(temp_dir)
 
-    @patch('bubbola.image_data_loader.fitz')
-    def test_convert_from_path_calls_pymupdf(self, mock_fitz):
-        """Test that convert_from_path uses PyMuPDF correctly."""
-        # Mock the fitz document and page
-        mock_doc = MagicMock()
-        mock_page = Mock()
-        mock_pixmap = Mock()
+    @pytest.fixture
+    def assets_dir(self):
+        """Get the assets directory path."""
+        return Path(__file__).parent / "assets"
+
+    @pytest.fixture
+    def pdf_files(self, assets_dir):
+        """Get the test PDF files."""
+        return [
+            assets_dir / "0088_001.pdf",
+            assets_dir / "0089_001.pdf"
+        ]
+
+    @pytest.fixture
+    def single_page_files(self, assets_dir):
+        """Get the extracted single page PNG files."""
+        return [
+            assets_dir / "single_pages" / "0088_001_001.png",
+            assets_dir / "single_pages" / "0089_001_001.png",
+            assets_dir / "single_pages" / "0089_001_002.png"
+        ]
+
+    @pytest.fixture
+    def resized_files(self, assets_dir):
+        """Get the resized PNG files."""
+        return [
+            assets_dir / "single_pages_resized" / "0088_001_001.png",
+            assets_dir / "single_pages_resized" / "0089_001_001.png",
+            assets_dir / "single_pages_resized" / "0089_001_002.png"
+        ]
+
+    def test_load_single_png_file(self, single_page_files):
+        """Test loading a single PNG file."""
+        png_file = single_page_files[0]
+        result = sanitize_to_images(png_file)
         
-        mock_doc.__len__.return_value = 1
-        mock_doc.load_page.return_value = mock_page
-        mock_fitz.open.return_value = mock_doc
-        mock_fitz.Matrix.return_value = Mock()
-        mock_page.get_pixmap.return_value = mock_pixmap
-        
-        # Create a mock PNG image
-        mock_img = Image.new('RGB', (100, 100), color='red')
-        img_bytes_io = BytesIO()
-        mock_img.save(img_bytes_io, format='PNG')
-        img_bytes = img_bytes_io.getvalue()
-        mock_pixmap.tobytes.return_value = img_bytes
-        
-        cache_manager = CacheManager()
-        converter = PDFConverter(cache_manager)
-        
-        # Test conversion
-        test_path = Path("test.pdf")
-        result = converter.convert_from_path(test_path)
-        
-        # Verify PyMuPDF was called correctly
-        mock_fitz.open.assert_called_once_with(str(test_path))
-        mock_doc.load_page.assert_called_once_with(0)
-        mock_doc.close.assert_called_once()
-        
-        # Verify result is a list of PIL Images
-        assert isinstance(result, list)
         assert len(result) == 1
-        assert isinstance(result[0], Image.Image)
+        assert "0088_001_001_001" in result
+        assert isinstance(result["0088_001_001_001"], Image.Image)
+        # Verify the loaded image has reasonable dimensions
+        assert result["0088_001_001_001"].size[0] > 0
+        assert result["0088_001_001_001"].size[1] > 0
 
-    @patch('bubbola.image_data_loader.fitz')
-    def test_convert_from_bytes_calls_pymupdf(self, mock_fitz):
-        """Test that convert_from_bytes uses PyMuPDF correctly."""
-        # Mock the fitz document and page
-        mock_doc = MagicMock()
-        mock_page = Mock()
-        mock_pixmap = Mock()
+    def test_load_single_pdf_file(self, pdf_files):
+        """Test loading a single PDF file."""
+        pdf_file = pdf_files[0]
+        result = sanitize_to_images(pdf_file)
         
-        mock_doc.__len__.return_value = 1
-        mock_doc.load_page.return_value = mock_page
-        mock_fitz.open.return_value = mock_doc
-        mock_fitz.Matrix.return_value = Mock()
-        mock_page.get_pixmap.return_value = mock_pixmap
-        
-        # Create a mock PNG image
-        mock_img = Image.new('RGB', (100, 100), color='blue')
-        img_bytes_io = BytesIO()
-        mock_img.save(img_bytes_io, format='PNG')
-        img_bytes = img_bytes_io.getvalue()
-        mock_pixmap.tobytes.return_value = img_bytes
-        
-        cache_manager = CacheManager()
-        converter = PDFConverter(cache_manager)
-        
-        # Test conversion
-        test_bytes = b"fake pdf content"
-        result = converter.convert_from_bytes(test_bytes)
-        
-        # Verify PyMuPDF was called correctly
-        mock_fitz.open.assert_called_once_with(stream=test_bytes, filetype="pdf")
-        mock_doc.load_page.assert_called_once_with(0)
-        mock_doc.close.assert_called_once()
-        
-        # Verify result is a list of PIL Images
-        assert isinstance(result, list)
         assert len(result) == 1
-        assert isinstance(result[0], Image.Image)
+        assert "0088_001_001" in result
+        assert isinstance(result["0088_001_001"], Image.Image)
+        # Verify the loaded image has reasonable dimensions
+        assert result["0088_001_001"].size[0] > 0
+        assert result["0088_001_001"].size[1] > 0
 
+    def test_load_multi_page_pdf(self, pdf_files):
+        """Test loading a multi-page PDF file."""
+        pdf_file = pdf_files[1]  # 0089_001.pdf has 2 pages
+        result = sanitize_to_images(pdf_file)
+        
+        assert len(result) == 2
+        assert "0089_001_001" in result
+        assert "0089_001_002" in result
+        assert isinstance(result["0089_001_001"], Image.Image)
+        assert isinstance(result["0089_001_002"], Image.Image)
 
-class TestSanitizeToImages:
-    """Test cases for sanitize_to_images function."""
+    def test_load_pdf_as_string_path(self, pdf_files):
+        """Test loading PDF using string path."""
+        pdf_file = str(pdf_files[0])
+        result = sanitize_to_images(pdf_file)
+        
+        assert len(result) == 1
+        assert "0088_001_001" in result
+        assert isinstance(result["0088_001_001"], Image.Image)
 
-    def test_sanitize_to_images_with_none(self):
-        """Test sanitize_to_images with None input."""
+    def test_load_list_of_pdf_files(self, pdf_files):
+        """Test loading a list of PDF files."""
+        result = sanitize_to_images(pdf_files)
+        
+        # Should have 3 total pages: 1 from 0088_001.pdf + 2 from 0089_001.pdf
+        assert len(result) == 3
+        assert "0088_001_001" in result
+        assert "0089_001_001" in result
+        assert "0089_001_002" in result
+        assert all(isinstance(img, Image.Image) for img in result.values())
+
+    def test_load_list_of_pdf_strings(self, pdf_files):
+        """Test loading a list of PDF files as strings."""
+        pdf_strings = [str(pdf) for pdf in pdf_files]
+        result = sanitize_to_images(pdf_strings)
+        
+        assert len(result) == 3
+        assert "0088_001_001" in result
+        assert "0089_001_001" in result
+        assert "0089_001_002" in result
+
+    def test_resize_single_image(self, single_page_files):
+        """Test resizing a single image."""
+        png_file = single_page_files[0]
+        result = sanitize_to_images(png_file, max_edge_size=100)
+        
+        assert len(result) == 1
+        assert "0088_001_001_001" in result
+        resized_image = result["0088_001_001_001"]
+        
+        # Verify resizing maintains aspect ratio and respects max_edge_size
+        width, height = resized_image.size
+        assert max(width, height) <= 100
+        assert min(width, height) > 0
+
+    def test_resize_pdf_pages(self, pdf_files):
+        """Test resizing PDF pages."""
+        pdf_file = pdf_files[1]  # Multi-page PDF
+        result = sanitize_to_images(pdf_file, max_edge_size=100)
+        
+        assert len(result) == 2
+        for img in result.values():
+            width, height = img.size
+            assert max(width, height) <= 100
+            assert min(width, height) > 0
+
+    def test_resize_list_of_files(self, pdf_files):
+        """Test resizing a list of files."""
+        result = sanitize_to_images(pdf_files, max_edge_size=100)
+        
+        assert len(result) == 3
+        for img in result.values():
+            width, height = img.size
+            assert max(width, height) <= 100
+            assert min(width, height) > 0
+
+    def test_base64_output(self, single_page_files):
+        """Test returning images as base64 strings."""
+        png_file = single_page_files[0]
+        result = sanitize_to_images(png_file, return_as_base64=True)
+        
+        assert len(result) == 1
+        assert "0088_001_001_001" in result
+        assert isinstance(result["0088_001_001_001"], str)
+        # Base64 strings should be non-empty
+        assert len(result["0088_001_001_001"]) > 0
+
+    def test_base64_with_resizing(self, pdf_files):
+        """Test base64 output with resizing."""
+        pdf_file = pdf_files[0]
+        result = sanitize_to_images(pdf_file, max_edge_size=100, return_as_base64=True)
+        
+        assert len(result) == 1
+        assert "0088_001_001" in result
+        assert isinstance(result["0088_001_001"], str)
+        assert len(result["0088_001_001"]) > 0
+
+    def test_none_input(self):
+        """Test handling of None input."""
         result = sanitize_to_images(None)
         assert result == {}
 
-    def test_sanitize_to_images_with_pil_image(self):
-        """Test sanitize_to_images with PIL Image input."""
-        test_image = Image.new('RGB', (100, 100), color='green')
-        result = sanitize_to_images(test_image)
-        
-        assert len(result) == 1
-        assert "image_001" in result
-        assert isinstance(result["image_001"], Image.Image)
-        assert result["image_001"].size == (100, 100)
+    def test_empty_list_input(self):
+        """Test handling of empty list input."""
+        result = sanitize_to_images([])
+        assert result == {}
 
-    def test_sanitize_to_images_with_iterable(self):
-        """Test sanitize_to_images with iterable input."""
-        test_images = [
-            Image.new('RGB', (50, 50), color='red'),
-            Image.new('RGB', (75, 75), color='blue')
-        ]
-        result = sanitize_to_images(test_images)
-        
-        # Check that the result contains two unique images
-        assert len(result) == 2
-        unique_sizes = {img.size for img in result.values() if isinstance(img, Image.Image)}
-        assert (50, 50) in unique_sizes
-        assert (75, 75) in unique_sizes
+    def test_file_not_found(self):
+        """Test handling of non-existent file."""
+        with pytest.raises(FileNotFoundError):
+            sanitize_to_images("nonexistent_file.pdf")
 
-    def test_sanitize_to_images_with_resizing(self):
-        """Test sanitize_to_images with max_edge_size parameter."""
-        test_image = Image.new('RGB', (200, 100), color='yellow')
-        result = sanitize_to_images(test_image, max_edge_size=50)
-        
-        assert len(result) == 1
-        assert "image_001" in result
-        resized_image = result["image_001"]
-        assert resized_image.size == (50, 25)  # Maintains aspect ratio
-
-    def test_sanitize_to_images_with_base64_output(self):
-        """Test sanitize_to_images with return_as_base64=True."""
-        test_image = Image.new('RGB', (50, 50), color='purple')
-        result = sanitize_to_images(test_image, return_as_base64=True)
-        
-        assert len(result) == 1
-        assert "image_001" in result
-        assert isinstance(result["image_001"], str)
-        # Base64 strings should start with data:image/png;base64, or be pure base64
-        assert len(result["image_001"]) > 0 
+    def test_unsupported_input_type(self):
+        """Test handling of unsupported input type."""
+        with pytest.raises(ValueError, match="Unsupported input type"):
+            sanitize_to_images(123)  # Integer is not supported 

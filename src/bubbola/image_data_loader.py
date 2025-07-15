@@ -367,7 +367,7 @@ if __name__ == "__main__":
 
     resampled_images = sanitize_to_images(asset_pdfs, return_as_base64=False, max_edge_size=100)
     for name, img in resampled_images.items():
-        img.save(f"{target_dir+"_resized"}/resampled_{name}.png")
+        img.save(f"{target_dir+"_resized"}/{name}.png")
 
 
 
