@@ -365,3 +365,48 @@ def sanitize_to_images(
     except Exception as e:
         cache_manager.save()
         raise e
+
+
+def save_sanitized_images(
+    input_data: str | Path | bytes | Image.Image | Iterable | None,
+    destination: Path | None = None,
+    max_edge_size: int | None = None,
+) -> Path:
+    """Convert input data to images and save them to the specified destination.
+
+    Args:
+        input_data: Input data to convert (PDF, image, folder, etc.)
+        destination: Destination folder for saved images. If None, uses "single_pages"
+        max_edge_size: If specified, images will be resized so that their largest edge
+                      is at most this many pixels, maintaining aspect ratio
+
+    Returns:
+        Path to the destination folder where images were saved
+    """
+    if destination is None:
+        destination = Path("single_pages")
+
+    destination.mkdir(parents=True, exist_ok=True)
+
+    # Get sanitized images
+    images_dict = sanitize_to_images(
+        input_data, return_as_base64=False, max_edge_size=max_edge_size
+    )
+
+    # Save each image
+    for key, image in images_dict.items():
+        if isinstance(image, Image.Image):
+            # Add .png extension if not present
+            filename = (
+                f"{key}.png"
+                if not key.endswith(
+                    (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".tif", ".webp")
+                )
+                else key
+            )
+            output_path = destination / filename
+            image.save(output_path, "PNG")
+            print(f"Saved: {output_path}")
+
+    print(f"Saved {len(images_dict)} images to {destination}")
+    return destination
