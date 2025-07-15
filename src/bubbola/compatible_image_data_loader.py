@@ -12,7 +12,7 @@ from PIL import Image
 
 
 class CacheManager:
-    def __init__(self, cache_dir: Path | None = None, max_age_days: int = 1):
+    def __init__(self, cache_dir: Path | None = None, max_age_days: int = 30):
         self.cache_dir = cache_dir or Path.home() / ".cache" / "ai_bubbles"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_path = self.cache_dir / "cache.pkl"
@@ -338,7 +338,7 @@ if __name__ == "__main__":
 
     print("First run (no cache, with resizing):")
     start_time = time.time()
-    sample_images = sanitize_to_images([sample_pdf, another_sample], max_edge_size=300, return_as_base64=True)
+    sample_images = sanitize_to_images([sample_pdf, another_sample], max_edge_size=1000, return_as_base64=True)
 
     print(f"Found {len(sample_images)} images")
     # pprint([s.size for s in sample_images.values()])
@@ -347,7 +347,7 @@ if __name__ == "__main__":
     print("\nSecond run (should use cache, with resizing):")
     start_time = time.time()
     sample_images = sanitize_to_images(
-        [sample_pdf, another_sample], max_edge_size=300, return_as_base64=True
+        [sample_pdf, another_sample], max_edge_size=800, return_as_base64=True
     )
 
     print(f"Found {len(sample_images)} images")
