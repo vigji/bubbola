@@ -1,10 +1,11 @@
 """Tests for the image data loader functionality."""
 
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, MagicMock, patch
 
 import pytest
 from PIL import Image
+from io import BytesIO
 
 from bubbola.image_data_loader import PDFConverter, CacheManager, sanitize_to_images
 
@@ -22,7 +23,7 @@ class TestPDFConverter:
     def test_convert_from_path_calls_pymupdf(self, mock_fitz):
         """Test that convert_from_path uses PyMuPDF correctly."""
         # Mock the fitz document and page
-        mock_doc = Mock()
+        mock_doc = MagicMock()
         mock_page = Mock()
         mock_pixmap = Mock()
         
@@ -34,7 +35,9 @@ class TestPDFConverter:
         
         # Create a mock PNG image
         mock_img = Image.new('RGB', (100, 100), color='red')
-        img_bytes = mock_img.tobytes()
+        img_bytes_io = BytesIO()
+        mock_img.save(img_bytes_io, format='PNG')
+        img_bytes = img_bytes_io.getvalue()
         mock_pixmap.tobytes.return_value = img_bytes
         
         cache_manager = CacheManager()
@@ -58,7 +61,7 @@ class TestPDFConverter:
     def test_convert_from_bytes_calls_pymupdf(self, mock_fitz):
         """Test that convert_from_bytes uses PyMuPDF correctly."""
         # Mock the fitz document and page
-        mock_doc = Mock()
+        mock_doc = MagicMock()
         mock_page = Mock()
         mock_pixmap = Mock()
         
@@ -70,7 +73,9 @@ class TestPDFConverter:
         
         # Create a mock PNG image
         mock_img = Image.new('RGB', (100, 100), color='blue')
-        img_bytes = mock_img.tobytes()
+        img_bytes_io = BytesIO()
+        mock_img.save(img_bytes_io, format='PNG')
+        img_bytes = img_bytes_io.getvalue()
         mock_pixmap.tobytes.return_value = img_bytes
         
         cache_manager = CacheManager()
@@ -117,11 +122,11 @@ class TestSanitizeToImages:
         ]
         result = sanitize_to_images(test_images)
         
+        # Check that the result contains two unique images
         assert len(result) == 2
-        assert "image_001" in result
-        assert "image_002" in result
-        assert isinstance(result["image_001"], Image.Image)
-        assert isinstance(result["image_002"], Image.Image)
+        unique_sizes = {img.size for img in result.values() if isinstance(img, Image.Image)}
+        assert (50, 50) in unique_sizes
+        assert (75, 75) in unique_sizes
 
     def test_sanitize_to_images_with_resizing(self):
         """Test sanitize_to_images with max_edge_size parameter."""

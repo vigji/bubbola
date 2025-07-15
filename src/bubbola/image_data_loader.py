@@ -353,3 +353,21 @@ if __name__ == "__main__":
     print(f"Found {len(sample_images)} images")
     # pprint([s.size for s in sample_images.values()])
     print(f"Time taken: {time.time() - start_time} seconds")
+
+    # prepare tests:
+    asset_pdfs = ["/Users/vigji/code/bubbola/tests/assets/0088_001.pdf", 
+                  "/Users/vigji/code/bubbola/tests/assets/0089_001.pdf"]
+
+    sample_images = sanitize_to_images(asset_pdfs, return_as_base64=False)
+
+    target_dir = "/Users/vigji/code/bubbola/tests/assets/single_pages"
+
+    for name, img in sample_images.items():
+        img.save(f"{target_dir}/{name}.png")
+
+    resampled_images = sanitize_to_images(asset_pdfs, return_as_base64=False, max_edge_size=100)
+    for name, img in resampled_images.items():
+        img.save(f"{target_dir+"_resized"}/resampled_{name}.png")
+
+
+
