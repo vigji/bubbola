@@ -1,8 +1,7 @@
+import csv
 import json
 from pathlib import Path
 from typing import Any
-
-import pandas as pd
 
 # TODO left at: why some of the docs are not read here? now we do not have empty ones.
 
@@ -76,38 +75,30 @@ def create_results_csv(
 
     print(f"Loaded {len(ddts_list)} DDTs and {len(items_list)} items")
 
-    # Create DataFrames
-    ddts_df = pd.DataFrame(ddts_list) if ddts_list else pd.DataFrame()
-    items_df = pd.DataFrame(items_list) if items_list else pd.DataFrame()
-
-    # Export to CSV using pandas
-    if not ddts_df.empty:
+    # Export to CSV using csv module
+    if ddts_list:
         ddts_csv = results_dir / "ddts_table.csv"
-        ddts_df.to_csv(ddts_csv, index=False, encoding="utf-8")
+        with open(ddts_csv, "w", newline="", encoding="utf-8") as f:
+            if ddts_list:
+                writer = csv.DictWriter(f, fieldnames=ddts_list[0].keys())
+                writer.writeheader()
+                writer.writerows(ddts_list)
         print(f"DDTs exported to: {ddts_csv}")
 
-    if not items_df.empty:
+    if items_list:
         items_csv = results_dir / "items_table.csv"
-        items_df.to_csv(items_csv, index=False, encoding="utf-8")
+        with open(items_csv, "w", newline="", encoding="utf-8") as f:
+            if items_list:
+                writer = csv.DictWriter(f, fieldnames=items_list[0].keys())
+                writer.writeheader()
+                writer.writerows(items_list)
         print(f"Items exported to: {items_csv}")
 
-    # Convert back to list of dicts for return compatibility
-    ddts_data = ddts_df.to_dict("records") if not ddts_df.empty else []
-    items_data = items_df.to_dict("records") if not items_df.empty else []
-
-    return ddts_data, items_data
+    return ddts_list, items_list
 
 
-# if __name__ == "__main__":
-#     # Handle command line argument for results directory
-
-#     ddts_data, items_data = create_results_csv(results_dir)
-#     # Basic stats
-#     suppliers = [d.get("nome_rag_1") for d in ddts_data if d.get("nome_rag_1")]
-#     unique_suppliers = set(suppliers)
-#     print(
-#         f"\nSummary: {len(unique_suppliers)} suppliers, {len(set(i.get('item_name', '') for i in items_data))} unique items"
-#     )
-
-#     for supplier in unique_suppliers:
-#         print(f"  {supplier}: {suppliers.count(supplier)} DDTs")
+if __name__ == "__main__":
+    results_dir = Path(
+        "/Users/vigji/Desktop/pages_sample-data/concrete/1461/results/test"
+    )
+    ddts_data, items_data = create_results_csv(results_dir)

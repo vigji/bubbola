@@ -1,11 +1,11 @@
 """Tests for the image data loader functionality."""
 
+import shutil
+import tempfile
 from pathlib import Path
+
 import pytest
 from PIL import Image
-import tempfile
-import shutil
-from unittest import mock
 
 from bubbola.image_data_loader import sanitize_to_images
 
@@ -18,12 +18,13 @@ class TestImageDataLoader:
         """Patch CacheManager in the image_data_loader module to use a temp directory for cache during tests."""
         temp_dir = tempfile.mkdtemp()
         from bubbola import image_data_loader
+
         original_cache_manager = image_data_loader.CacheManager
-        
+
         class TempCacheManager(original_cache_manager):
             def __init__(self, cache_dir=None, max_age_days=30):
                 super().__init__(cache_dir=Path(temp_dir), max_age_days=max_age_days)
-        
+
         monkeypatch.setattr(image_data_loader, "CacheManager", TempCacheManager)
         yield
         shutil.rmtree(temp_dir)
@@ -36,10 +37,7 @@ class TestImageDataLoader:
     @pytest.fixture
     def pdf_files(self, assets_dir):
         """Get the test PDF files."""
-        return [
-            assets_dir / "0088_001.pdf",
-            assets_dir / "0089_001.pdf"
-        ]
+        return [assets_dir / "0088_001.pdf", assets_dir / "0089_001.pdf"]
 
     @pytest.fixture
     def single_page_files(self, assets_dir):
@@ -47,7 +45,7 @@ class TestImageDataLoader:
         return [
             assets_dir / "single_pages" / "0088_001_001.png",
             assets_dir / "single_pages" / "0089_001_001.png",
-            assets_dir / "single_pages" / "0089_001_002.png"
+            assets_dir / "single_pages" / "0089_001_002.png",
         ]
 
     @pytest.fixture
@@ -56,14 +54,14 @@ class TestImageDataLoader:
         return [
             assets_dir / "single_pages_resized" / "0088_001_001.png",
             assets_dir / "single_pages_resized" / "0089_001_001.png",
-            assets_dir / "single_pages_resized" / "0089_001_002.png"
+            assets_dir / "single_pages_resized" / "0089_001_002.png",
         ]
 
     def test_load_single_png_file(self, single_page_files):
         """Test loading a single PNG file."""
         png_file = single_page_files[0]
         result = sanitize_to_images(png_file)
-        
+
         assert len(result) == 1
         assert "0088_001_001_001" in result
         assert isinstance(result["0088_001_001_001"], Image.Image)
@@ -75,7 +73,7 @@ class TestImageDataLoader:
         """Test loading a single PDF file."""
         pdf_file = pdf_files[0]
         result = sanitize_to_images(pdf_file)
-        
+
         assert len(result) == 1
         assert "0088_001_001" in result
         assert isinstance(result["0088_001_001"], Image.Image)
@@ -87,7 +85,7 @@ class TestImageDataLoader:
         """Test loading a multi-page PDF file."""
         pdf_file = pdf_files[1]  # 0089_001.pdf has 2 pages
         result = sanitize_to_images(pdf_file)
-        
+
         assert len(result) == 2
         assert "0089_001_001" in result
         assert "0089_001_002" in result
@@ -98,7 +96,7 @@ class TestImageDataLoader:
         """Test loading PDF using string path."""
         pdf_file = str(pdf_files[0])
         result = sanitize_to_images(pdf_file)
-        
+
         assert len(result) == 1
         assert "0088_001_001" in result
         assert isinstance(result["0088_001_001"], Image.Image)
@@ -106,7 +104,7 @@ class TestImageDataLoader:
     def test_load_list_of_pdf_files(self, pdf_files):
         """Test loading a list of PDF files."""
         result = sanitize_to_images(pdf_files)
-        
+
         # Should have 3 total pages: 1 from 0088_001.pdf + 2 from 0089_001.pdf
         assert len(result) == 3
         assert "0088_001_001" in result
@@ -118,7 +116,7 @@ class TestImageDataLoader:
         """Test loading a list of PDF files as strings."""
         pdf_strings = [str(pdf) for pdf in pdf_files]
         result = sanitize_to_images(pdf_strings)
-        
+
         assert len(result) == 3
         assert "0088_001_001" in result
         assert "0089_001_001" in result
@@ -128,11 +126,11 @@ class TestImageDataLoader:
         """Test resizing a single image."""
         png_file = single_page_files[0]
         result = sanitize_to_images(png_file, max_edge_size=100)
-        
+
         assert len(result) == 1
         assert "0088_001_001_001" in result
         resized_image = result["0088_001_001_001"]
-        
+
         # Verify resizing maintains aspect ratio and respects max_edge_size
         width, height = resized_image.size
         assert max(width, height) <= 100
@@ -142,7 +140,7 @@ class TestImageDataLoader:
         """Test resizing PDF pages."""
         pdf_file = pdf_files[1]  # Multi-page PDF
         result = sanitize_to_images(pdf_file, max_edge_size=100)
-        
+
         assert len(result) == 2
         for img in result.values():
             width, height = img.size
@@ -152,7 +150,7 @@ class TestImageDataLoader:
     def test_resize_list_of_files(self, pdf_files):
         """Test resizing a list of files."""
         result = sanitize_to_images(pdf_files, max_edge_size=100)
-        
+
         assert len(result) == 3
         for img in result.values():
             width, height = img.size
@@ -163,7 +161,7 @@ class TestImageDataLoader:
         """Test returning images as base64 strings."""
         png_file = single_page_files[0]
         result = sanitize_to_images(png_file, return_as_base64=True)
-        
+
         assert len(result) == 1
         assert "0088_001_001_001" in result
         assert isinstance(result["0088_001_001_001"], str)
@@ -174,7 +172,7 @@ class TestImageDataLoader:
         """Test base64 output with resizing."""
         pdf_file = pdf_files[0]
         result = sanitize_to_images(pdf_file, max_edge_size=100, return_as_base64=True)
-        
+
         assert len(result) == 1
         assert "0088_001_001" in result
         assert isinstance(result["0088_001_001"], str)
@@ -198,4 +196,4 @@ class TestImageDataLoader:
     def test_unsupported_input_type(self):
         """Test handling of unsupported input type."""
         with pytest.raises(ValueError, match="Unsupported input type"):
-            sanitize_to_images(123)  # Integer is not supported 
+            sanitize_to_images(123)  # Integer is not supported
