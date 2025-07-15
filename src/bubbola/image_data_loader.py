@@ -1,8 +1,9 @@
 import base64
 import hashlib
-import os
 import pickle
+import time
 from collections.abc import Iterable
+from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 
@@ -11,13 +12,15 @@ from PIL import Image
 
 
 class CacheManager:
-    def __init__(self, cache_dir: Path | None = None):
+    def __init__(self, cache_dir: Path | None = None, max_age_days: int = 30):
         self.cache_dir = cache_dir or Path.home() / ".cache" / "ai_bubbles"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_path = self.cache_dir / "cache.pkl"
-        self._cache: dict[str, list[bytes]] = self._load()
+        self.max_age_days = max_age_days
+        self._cache: dict[str, dict] = self._load()
+        self._cleanup_old_entries()
 
-    def _load(self) -> dict[str, list[bytes]]:
+    def _load(self) -> dict[str, dict]:
         """Load the cache from disk."""
         if self.cache_path.exists():
             with open(self.cache_path, "rb") as f:
@@ -30,15 +33,28 @@ class CacheManager:
         temp_path = self.cache_path.with_suffix(".tmp")
         with open(temp_path, "wb") as f:
             pickle.dump(self._cache, f)
-        os.replace(temp_path, self.cache_path)
+        temp_path.replace(self.cache_path)
 
     def get(self, key: str) -> list[bytes] | None:
         """Get a value from cache."""
-        return self._cache.get(key)
+        entry = self._cache.get(key)
+        if entry is None:
+            return None
+        
+        # Check if entry is expired
+        if self._is_expired(entry):
+            del self._cache[key]
+            return None
+            
+        return entry["data"]
 
     def set(self, key: str, value: list[bytes]):
         """Set a value in cache."""
-        self._cache[key] = value
+        self._cache[key] = {
+            "data": value,
+            "timestamp": time.time(),
+            "created": datetime.now().isoformat()
+        }
 
     def compute_file_hash(self, file_path: Path) -> str:
         """Compute SHA256 hash of a file for cache key."""
@@ -51,6 +67,28 @@ class CacheManager:
     def compute_bytes_hash(self, data: bytes) -> str:
         """Compute SHA256 hash of bytes for cache key."""
         return hashlib.sha256(data).hexdigest()
+
+    def _is_expired(self, entry: dict) -> bool:
+        """Check if a cache entry is expired."""
+        if "timestamp" not in entry:
+            return True  # Old format entries are considered expired
+        
+        age_seconds = time.time() - entry["timestamp"]
+        max_age_seconds = self.max_age_days * 24 * 60 * 60
+        return age_seconds > max_age_seconds
+
+    def _cleanup_old_entries(self):
+        """Remove expired entries from cache."""
+        expired_keys = []
+        for key, entry in self._cache.items():
+            if self._is_expired(entry):
+                expired_keys.append(key)
+        
+        for key in expired_keys:
+            del self._cache[key]
+        
+        if expired_keys:
+            print(f"Cleaned up {len(expired_keys)} expired cache entries")
 
 
 class PDFConverter:
@@ -255,12 +293,10 @@ def sanitize_to_images(
             for i, img in enumerate(images, 1):
                 result[f"{base_name}_{i:03d}"] = img
 
-        if return_as_base64:
-            cache_manager.save()
+        cache_manager.save()
         return result
     except Exception as e:
-        if return_as_base64:
-            cache_manager.save()
+        cache_manager.save()
         raise e
 
 

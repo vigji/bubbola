@@ -1,8 +1,9 @@
 import base64
 import hashlib
-import os
 import pickle
+import time
 from collections.abc import Iterable
+from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 
@@ -11,13 +12,15 @@ from PIL import Image
 
 
 class CacheManager:
-    def __init__(self, cache_dir: Path | None = None):
+    def __init__(self, cache_dir: Path | None = None, max_age_days: int = 1):
         self.cache_dir = cache_dir or Path.home() / ".cache" / "ai_bubbles"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_path = self.cache_dir / "cache.pkl"
-        self._cache: dict[str, list[bytes]] = self._load()
+        self.max_age_days = max_age_days
+        self._cache: dict[str, dict] = self._load()
+        self._cleanup_old_entries()
 
-    def _load(self) -> dict[str, list[bytes]]:
+    def _load(self) -> dict[str, dict]:
         """Load the cache from disk."""
         if self.cache_path.exists():
             with open(self.cache_path, "rb") as f:
@@ -30,15 +33,28 @@ class CacheManager:
         temp_path = self.cache_path.with_suffix(".tmp")
         with open(temp_path, "wb") as f:
             pickle.dump(self._cache, f)
-        os.replace(temp_path, self.cache_path)
+        temp_path.replace(self.cache_path)
 
     def get(self, key: str) -> list[bytes] | None:
         """Get a value from cache."""
-        return self._cache.get(key)
+        entry = self._cache.get(key)
+        if entry is None:
+            return None
+        
+        # Check if entry is expired
+        if self._is_expired(entry):
+            del self._cache[key]
+            return None
+            
+        return entry["data"]
 
     def set(self, key: str, value: list[bytes]):
         """Set a value in cache."""
-        self._cache[key] = value
+        self._cache[key] = {
+            "data": value,
+            "timestamp": time.time(),
+            "created": datetime.now().isoformat()
+        }
 
     def compute_file_hash(self, file_path: Path) -> str:
         """Compute SHA256 hash of a file for cache key."""
@@ -52,6 +68,28 @@ class CacheManager:
         """Compute SHA256 hash of bytes for cache key."""
         return hashlib.sha256(data).hexdigest()
 
+    def _is_expired(self, entry: dict) -> bool:
+        """Check if a cache entry is expired."""
+        if "timestamp" not in entry:
+            return True  # Old format entries are considered expired
+        
+        age_seconds = time.time() - entry["timestamp"]
+        max_age_seconds = self.max_age_days * 24 * 60 * 60
+        return age_seconds > max_age_seconds
+
+    def _cleanup_old_entries(self):
+        """Remove expired entries from cache."""
+        expired_keys = []
+        for key, entry in self._cache.items():
+            if self._is_expired(entry):
+                expired_keys.append(key)
+        
+        for key in expired_keys:
+            del self._cache[key]
+        
+        if expired_keys:
+            print(f"Cleaned up {len(expired_keys)} expired cache entries")
+
 
 class PDFConverter:
     def __init__(self, cache_manager: CacheManager):
@@ -61,8 +99,10 @@ class PDFConverter:
         cache_key = self.cache_manager.compute_file_hash(path)
         cached = self.cache_manager.get(cache_key)
         if cached:
+            print(f"Cache HIT for {path.name}")
             return [_deserialize_image(img_bytes) for img_bytes in cached]
 
+        print(f"Cache MISS for {path.name}")
         images = self._convert_pdf_to_images(str(path))
         self.cache_manager.set(cache_key, [_serialize_image(img) for img in images])
         return images
@@ -71,8 +111,10 @@ class PDFConverter:
         cache_key = self.cache_manager.compute_bytes_hash(data)
         cached = self.cache_manager.get(cache_key)
         if cached:
+            print(f"Cache HIT for bytes data")
             return [_deserialize_image(img_bytes) for img_bytes in cached]
 
+        print(f"Cache MISS for bytes data")
         images = self._convert_pdf_bytes_to_images(data)
         self.cache_manager.set(cache_key, [_serialize_image(img) for img in images])
         return images
@@ -205,7 +247,7 @@ def sanitize_to_images(
     - PIL Image objects
     - Iterables containing any of the above
 
-    Uses persistent caching for PDF conversions to improve performance on subsequent runs.
+    Uses persistent caching for all processing steps (including resizing and base64) to improve performance on subsequent runs.
 
     Args:
         input_data: Input data to convert
@@ -225,10 +267,35 @@ def sanitize_to_images(
     ):
         result = {}
         for item in input_data:
+            # Use a tuple of (item, max_edge_size, return_as_base64) as part of the cache key for each item
             result.update(sanitize_to_images(item, return_as_base64, max_edge_size))
         return result
 
     cache_manager = CacheManager()
+
+    # Compute a unique hash for the input and processing parameters
+    if isinstance(input_data, (str, Path)):
+        input_hash = cache_manager.compute_file_hash(Path(input_data))
+        base_name = Path(input_data).stem
+    elif isinstance(input_data, bytes):
+        input_hash = cache_manager.compute_bytes_hash(input_data)
+        base_name = "image"
+    elif isinstance(input_data, Image.Image):
+        # For PIL Images, use their bytes as hash
+        img_bytes = BytesIO()
+        input_data.save(img_bytes, format="PNG")
+        input_hash = cache_manager.compute_bytes_hash(img_bytes.getvalue())
+        base_name = "image"
+    else:
+        raise ValueError(f"Unsupported input type: {type(input_data)}")
+
+    cache_key = f"{input_hash}_size{max_edge_size}_b64{return_as_base64}"
+    cached = cache_manager.get(cache_key)
+    if cached:
+        # Deserialize the cached result
+        result = pickle.loads(cached[0])
+        return result
+
     pdf_converter = PDFConverter(cache_manager)
     image_loader = ImageLoader(pdf_converter, max_edge_size)
 
@@ -241,12 +308,6 @@ def sanitize_to_images(
         images = loader.load(input_data)
         result = {}
 
-        # Get base filename
-        if isinstance(input_data, str | Path):
-            base_name = Path(input_data).stem
-        else:
-            base_name = "image"
-
         # Handle single image case
         if len(images) == 1:
             result[f"{base_name}_001"] = images[0]
@@ -255,12 +316,12 @@ def sanitize_to_images(
             for i, img in enumerate(images, 1):
                 result[f"{base_name}_{i:03d}"] = img
 
-        if return_as_base64:
-            cache_manager.save()
+        # Store the final result in the cache
+        cache_manager.set(cache_key, [pickle.dumps(result)])
+        cache_manager.save()
         return result
     except Exception as e:
-        if return_as_base64:
-            cache_manager.save()
+        cache_manager.save()
         raise e
 
 
@@ -277,16 +338,18 @@ if __name__ == "__main__":
 
     print("First run (no cache, with resizing):")
     start_time = time.time()
-    sample_images = sanitize_to_images([sample_pdf, another_sample], max_edge_size=1000)
+    sample_images = sanitize_to_images([sample_pdf, another_sample], max_edge_size=300, return_as_base64=True)
 
     print(f"Found {len(sample_images)} images")
-    pprint([s.size for s in sample_images.values()])
+    # pprint([s.size for s in sample_images.values()])
     print(f"Time taken: {time.time() - start_time} seconds")
 
     print("\nSecond run (should use cache, with resizing):")
     start_time = time.time()
-    sample_images = sanitize_to_images([sample_pdf, another_sample], max_edge_size=1000)
+    sample_images = sanitize_to_images(
+        [sample_pdf, another_sample], max_edge_size=300, return_as_base64=True
+    )
 
     print(f"Found {len(sample_images)} images")
-    pprint([s.size for s in sample_images.values()])
+    # pprint([s.size for s in sample_images.values()])
     print(f"Time taken: {time.time() - start_time} seconds")
