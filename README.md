@@ -57,6 +57,31 @@ This project uses Ruff for linting and formatting:
 - **Lint code:** `ruff check src/ tests/`
 - **Auto-fix issues:** `ruff check --fix src/ tests/`
 
+#### Git Hooks for Ruff
+
+To automatically run ruff checks before commits, you can set up a pre-commit hook:
+
+1. **Install pre-commit:**
+   ```bash
+   uv add --dev pre-commit
+   ```
+
+2. **Create `.pre-commit-config.yaml`:**
+   ```yaml
+   repos:
+     - repo: https://github.com/astral-sh/ruff-pre-commit
+       rev: v0.12.3
+       hooks:
+         - id: ruff
+           args: [--fix]
+         - id: ruff-format
+   ```
+
+3. **Install the git hooks:**
+   ```bash
+   uv run pre-commit install
+   ```
+
 ## Development Workflow
 
 1. **Start development:**
