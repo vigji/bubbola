@@ -243,6 +243,7 @@ def sanitize_to_images(
 
     Handles:
     - Path/string to PDF, image file
+    - Path/string to folder containing PDFs and images
     - Raw bytes of PDF or image
     - PIL Image objects
     - Iterables containing any of the above
@@ -270,6 +271,47 @@ def sanitize_to_images(
             # Use a tuple of (item, max_edge_size, return_as_base64) as part of the cache key for each item
             result.update(sanitize_to_images(item, return_as_base64, max_edge_size))
         return result
+
+    # Handle folder input
+    if isinstance(input_data, str | Path):
+        path = Path(input_data)
+        if path.is_dir():
+            result = {}
+            # Supported file extensions
+            supported_extensions = {
+                ".pdf",
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".gif",
+                ".bmp",
+                ".tiff",
+                ".tif",
+                ".webp",
+            }
+
+            for file_path in path.iterdir():
+                if (
+                    file_path.is_file()
+                    and file_path.suffix.lower() in supported_extensions
+                ):
+                    file_result = sanitize_to_images(
+                        file_path, return_as_base64, max_edge_size
+                    )
+                    # rename keys that already exist in result:
+                    modified_keys = []
+                    for key, value in file_result.items():
+                        if key in result:
+                            result[f"{key}_001"] = value
+                            modified_keys.append(key)
+                        else:
+                            result[key] = value
+
+                    # remove keys that were modified
+                    for key in modified_keys:
+                        del result[key]
+                    result.update(file_result)
+            return result
 
     cache_manager = CacheManager()
 

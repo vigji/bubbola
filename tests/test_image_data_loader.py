@@ -197,3 +197,166 @@ class TestImageDataLoader:
         """Test handling of unsupported input type."""
         with pytest.raises(ValueError, match="Unsupported input type"):
             sanitize_to_images(123)  # Integer is not supported
+
+    def test_folder_processing_with_pdfs_and_images(self, assets_dir):
+        """Test processing a folder containing PDFs and images."""
+        # Create a temporary test folder with mixed content
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Copy PDF files
+            pdf1 = temp_path / "test1.pdf"
+            pdf2 = temp_path / "test2.pdf"
+            shutil.copy2(assets_dir / "0088_001.pdf", pdf1)
+            shutil.copy2(assets_dir / "0089_001.pdf", pdf2)
+
+            # Copy image files with different names to avoid conflicts
+            img1 = temp_path / "image1.png"
+            img2 = temp_path / "image2.jpg"
+            shutil.copy2(assets_dir / "single_pages" / "0088_001_001.png", img1)
+            shutil.copy2(assets_dir / "single_pages" / "0089_001_001.png", img2)
+
+            # Create an unsupported file (should be ignored)
+            unsupported = temp_path / "test.txt"
+            unsupported.write_text("This should be ignored")
+
+            # Process the folder
+            result = sanitize_to_images(temp_path)
+
+            # Should have 5 total pages: 1 from test1.pdf + 2 from test2.pdf + 1 from image1.png + 1 from image2.jpg
+            assert len(result) == 5
+            assert "test1_001" in result  # PDF page
+            assert "test2_001" in result  # PDF page 1
+            assert "test2_002" in result  # PDF page 2
+            assert "image1_001" in result  # PNG image
+            assert "image2_001" in result  # JPG image
+
+            # All results should be PIL Images
+            assert all(isinstance(img, Image.Image) for img in result.values())
+
+    def test_folder_processing_with_resizing(self, assets_dir):
+        """Test processing a folder with image resizing."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Copy files
+            pdf_file = temp_path / "test.pdf"
+            img_file = temp_path / "test.png"
+            shutil.copy2(assets_dir / "0088_001.pdf", pdf_file)
+            shutil.copy2(assets_dir / "single_pages" / "0088_001_001.png", img_file)
+
+            # Process with resizing
+            result = sanitize_to_images(temp_path, max_edge_size=100)
+
+            assert len(result) == 2  # 1 PDF page + 1 image
+            for img in result.values():
+                width, height = img.size
+                assert max(width, height) <= 100
+                assert min(width, height) > 0
+
+    def test_folder_processing_with_base64(self, assets_dir):
+        """Test processing a folder with base64 output."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Copy files
+            pdf_file = temp_path / "test.pdf"
+            img_file = temp_path / "test.png"
+            shutil.copy2(assets_dir / "0088_001.pdf", pdf_file)
+            shutil.copy2(assets_dir / "single_pages" / "0088_001_001.png", img_file)
+
+            # Process with base64 output
+            result = sanitize_to_images(temp_path, return_as_base64=True)
+
+            assert len(result) == 2
+            assert all(isinstance(img, str) for img in result.values())
+            assert all(len(img) > 0 for img in result.values())
+
+    def test_folder_processing_empty_folder(self):
+        """Test processing an empty folder."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            result = sanitize_to_images(temp_path)
+            assert result == {}
+
+    def test_folder_processing_only_unsupported_files(self):
+        """Test processing a folder with only unsupported file types."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create unsupported files
+            (temp_path / "test1.txt").write_text("Text file")
+            (temp_path / "test2.doc").write_text("Document file")
+            (temp_path / "test3.py").write_text("Python file")
+
+            result = sanitize_to_images(temp_path)
+            assert result == {}
+
+    def test_folder_processing_case_insensitive_extensions(self, assets_dir):
+        """Test that folder processing handles case-insensitive file extensions."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Copy files with different case extensions but different base names
+            pdf_upper = temp_path / "test1.PDF"
+            img_upper = temp_path / "test2.PNG"
+            img_mixed = temp_path / "test3.JpG"
+
+            shutil.copy2(assets_dir / "0088_001.pdf", pdf_upper)
+            shutil.copy2(assets_dir / "single_pages" / "0088_001_001.png", img_upper)
+            shutil.copy2(assets_dir / "single_pages" / "0089_001_001.png", img_mixed)
+
+            result = sanitize_to_images(temp_path)
+
+            # Should process all files regardless of case
+            assert len(result) == 3
+            assert "test1_001" in result  # PDF
+            assert "test2_001" in result  # PNG
+            assert "test3_001" in result  # JPG
+
+    def test_folder_processing_string_path(self, assets_dir):
+        """Test processing a folder using string path."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Copy a file
+            pdf_file = temp_path / "test.pdf"
+            shutil.copy2(assets_dir / "0088_001.pdf", pdf_file)
+
+            # Process using string path
+            result = sanitize_to_images(str(temp_path))
+
+            assert len(result) == 1
+            assert "test_001" in result
+            assert isinstance(result["test_001"], Image.Image)
+
+    def test_folder_processing_nested_structure(self, assets_dir):
+        """Test that folder processing only processes files in the root folder, not subdirectories."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create nested structure
+            subdir = temp_path / "subdir"
+            subdir.mkdir()
+
+            # Files in root directory (should be processed)
+            root_pdf = temp_path / "root1.pdf"
+            root_img = temp_path / "root2.png"
+            shutil.copy2(assets_dir / "0088_001.pdf", root_pdf)
+            shutil.copy2(assets_dir / "single_pages" / "0088_001_001.png", root_img)
+
+            # Files in subdirectory (should NOT be processed)
+            sub_pdf = subdir / "sub.pdf"
+            sub_img = subdir / "sub.png"
+            shutil.copy2(assets_dir / "0089_001.pdf", sub_pdf)
+            shutil.copy2(assets_dir / "single_pages" / "0089_001_001.png", sub_img)
+
+            result = sanitize_to_images(temp_path)
+
+            # Should only process files in root directory
+            assert len(result) == 2
+            assert "root1_001" in result  # PDF
+            assert "root2_001" in result  # PNG
+
+            # Should NOT include subdirectory files
+            assert "sub_001" not in result
