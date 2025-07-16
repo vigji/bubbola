@@ -84,7 +84,7 @@ class BubbolaApp:
                 return 1
 
         try:
-            from .image_data_loader import save_sanitized_images
+            from bubbola.image_data_loader import save_sanitized_images
 
             output_path = save_sanitized_images(input_path, destination, max_edge_size)
             print(f"Successfully sanitized images to: {output_path}")
