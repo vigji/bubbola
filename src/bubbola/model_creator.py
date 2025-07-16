@@ -162,13 +162,18 @@ def get_model_client_response(required_model: str, force_openrouter=False):
     )
 
 
-def get_client_response_function(required_model: str, force_openrouter=False):
+def get_client_response_function(
+    required_model: str, pydantic_model=None, force_openrouter=False
+):
     client = get_model_client_response(required_model, force_openrouter)
 
-    # Use the standard chat completions API for all models
-    response_function = client.chat.completions.create
-
-    return response_function
+    # If a pydantic model is provided, use the new .parse interface for structured outputs
+    if pydantic_model is not None:
+        # Use the beta.chat.completions.parse method for strict schema enforcement
+        return client.beta.chat.completions.parse
+    else:
+        # Fallback to regular chat completions for non-structured outputs
+        return client.chat.completions.create
 
 
 if __name__ == "__main__":

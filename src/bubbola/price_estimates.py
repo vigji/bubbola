@@ -3,9 +3,9 @@ import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from io import BytesIO
+from typing import Any
 
 from dotenv import load_dotenv
-from openai import OpenAIResponse
 from PIL import Image
 
 from bubbola.model_creator import get_client_response_function
@@ -35,7 +35,7 @@ class TokenCounts:
     retry_input_tokens: int = 0
     retry_output_tokens: int = 0
 
-    def add_attempt(self, response: OpenAIResponse, is_retry: bool = False):
+    def add_attempt(self, response, is_retry: bool = False):
         """Add token counts from an attempt."""
         self.total_input_tokens += response.usage.prompt_tokens
         self.total_output_tokens += response.usage.completion_tokens
@@ -133,6 +133,7 @@ def _get_image_size_from_base64(b64_string: str) -> tuple[int, int]:
         b64_string = b64_string.split(",")[1]
 
     # Decode base64
+
     image_data = base64.b64decode(b64_string)
 
     # Open the image using Pillow
@@ -273,12 +274,105 @@ def estimate_total_tokens_number(
     return int(math.ceil(t_text + t_image))
 
 
+def estimate_max_output_tokens_from_schema(response_format: dict[str, Any]) -> int:
+    """
+    Estimate the maximum output tokens needed based on the response format schema.
+
+    This function analyzes the JSON schema to estimate token requirements:
+    - Counts required and optional fields
+    - Estimates tokens for different data types
+    - Considers nested structures and arrays
+    - Adds buffer for JSON formatting and field names
+
+    Args:
+        response_format: The JSON schema dictionary for the response format
+
+    Returns:
+        int: Estimated maximum output tokens needed
+    """
+    if not response_format or not isinstance(response_format, dict):
+        return 1000  # Default fallback
+
+    # Base tokens for JSON structure
+    base_tokens = 50
+
+    # Tokens for field names and structure
+    structure_tokens = 0
+
+    # Content tokens based on data types
+    content_tokens = 0
+
+    def analyze_schema(schema: dict[str, Any], path: str = "") -> None:
+        nonlocal structure_tokens, content_tokens
+
+        if "properties" in schema:
+            properties = schema["properties"]
+
+            for field_name, field_schema in properties.items():
+                # Tokens for field name
+                structure_tokens += (
+                    len(field_name.split()) + 2
+                )  # +2 for quotes and colon
+
+                # Analyze field type
+                field_type = field_schema.get("type", "string")
+                description = field_schema.get("description", "")
+
+                if field_type == "string":
+                    # Estimate based on description or default length
+                    if description:
+                        # Use description length as a hint for expected content
+                        content_tokens += min(len(description.split()) * 2, 50)
+                    else:
+                        content_tokens += 10  # Default string length
+                elif field_type == "number" or field_type == "integer":
+                    content_tokens += 5  # Numbers are typically short
+                elif field_type == "boolean":
+                    content_tokens += 1  # true/false
+                elif field_type == "array":
+                    # For arrays, analyze the items schema
+                    items_schema = field_schema.get("items", {})
+                    if items_schema:
+                        # Estimate 3-5 items per array on average
+                        avg_items = 4
+                        content_tokens += avg_items * 20  # 20 tokens per array item
+                        analyze_schema(items_schema, f"{path}.{field_name}")
+                elif field_type == "object":
+                    # Recursively analyze nested objects
+                    analyze_schema(field_schema, f"{path}.{field_name}")
+
+                # Add tokens for JSON formatting (commas, brackets, etc.)
+                structure_tokens += 5
+
+    # Analyze the main schema
+    analyze_schema(response_format)
+
+    # Calculate total estimated tokens
+    total_tokens = base_tokens + structure_tokens + content_tokens
+
+    # Add safety buffer (50% more than estimated)
+    estimated_tokens = int(total_tokens * 1.5)
+
+    # Ensure reasonable bounds
+    min_tokens = 50
+    max_tokens = 8000  # Increased for structured output parsing
+
+    return max(min_tokens, min(estimated_tokens, max_tokens))
+
+
 if __name__ == "__main__":
     import base64
     import random
     from pathlib import Path
 
     from PIL import Image
+
+    from bubbola.data_models import DeliveryNote
+
+    output_schema = DeliveryNote.model_json_schema()
+
+    est_max_output_tokens = estimate_max_output_tokens_from_schema(output_schema)
+    print("estimated max output tokens: ", est_max_output_tokens)
 
     model_name = "mistralai/mistral-small-3.2-24b-instruct:free"  #  "gpt-4o-mini"  #
 

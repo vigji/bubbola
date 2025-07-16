@@ -9,6 +9,7 @@ from bubbola.data_models import DeliveryNote
 from bubbola.price_estimates import (
     AggregatedTokenCounts,
     TokenCounts,
+    estimate_max_output_tokens_from_schema,
     estimate_total_tokens_number,
     get_cost_estimate,
 )
@@ -18,7 +19,9 @@ token_lock = threading.Lock()
 shutdown_requested = False
 
 
-def _validate_response_content(response_content: str, name: str, attempt: int) -> bool:
+def _validate_response_content(
+    response_content: str, image_name: str, attempt: int
+) -> bool:
     """Validate response content and return True if valid, False otherwise."""
     if not response_content or not response_content.strip():
         return False
@@ -32,7 +35,7 @@ def _validate_response_content(response_content: str, name: str, attempt: int) -
             "$defs" in parsed_json or "properties" in parsed_json
         ):
             print(
-                f"Response contains schema instead of data for {name}, attempt {attempt + 1}. Retrying..."
+                f"Response contains schema instead of data for {image_name}, attempt {attempt + 1}. Retrying..."
             )
             return False
         else:
@@ -40,17 +43,17 @@ def _validate_response_content(response_content: str, name: str, attempt: int) -
             return True
     except (json.JSONDecodeError, ValueError) as e:
         print(
-            f"Invalid JSON or Pydantic validation failed for {name}, attempt {attempt + 1}: {e}"
+            f"Invalid JSON or Pydantic validation failed for {image_name}, attempt {attempt + 1}: {e}"
         )
         return False
 
 
-def _save_response_files(results_dir, name, response_content, base64_image):
+def _save_response_files(results_dir, image_name, response_content, base64_image):
     """Save response JSON and image files."""
-    with open(results_dir / f"response_{name}.json", "w") as f:
+    with open(results_dir / f"response_{image_name}.json", "w") as f:
         json.dump(response_content if response_content else "", f)
 
-    with open(results_dir / f"response_{name}.png", "wb") as f:
+    with open(results_dir / f"response_{image_name}.png", "wb") as f:
         f.write(base64.b64decode(base64_image))
 
 
@@ -86,34 +89,44 @@ def _process_single_image_dry_run(
         print(f"  Cost estimate: Not available for model {model_name}")
     print()
 
-    return token_counts.to_tuple()
+    return token_counts
 
 
 def process_single_image(
-    name,
-    base64_image,
+    base64_image: str,
     results_dir,
     system_prompt,
     response_function,
-    response_format,
+    response_scheme,
     model_name,
+    image_name: str,
     timeout=60,
     max_retries=5,
-    temperature=0.0,
+    temperature=None,
     dry_run=False,
-    max_output_tokens=None,
 ):
     """Process a single image and return the token counts and retry stats."""
+
+    # Estimate max_output_tokens from response format if not provided
+    max_output_tokens = estimate_max_output_tokens_from_schema(
+        response_scheme.model_json_schema()
+    )
+
     if dry_run:
         return _process_single_image_dry_run(
-            name, base64_image, system_prompt, model_name, max_output_tokens
+            image_name, base64_image, system_prompt, model_name, max_output_tokens
         )
+
+    if temperature is None:
+        if model_name == "o3" or model_name == "o4-mini":
+            temperature = 1
+        else:
+            temperature = 0.0
 
     kwargs = {
         "model": model_name,
-        "response_format": response_format,
         "temperature": temperature,
-        "max_completion_tokens": max_output_tokens,
+        # "max_completion_tokens": max_output_tokens,
     }
 
     messages = [
@@ -138,18 +151,35 @@ def process_single_image(
     for attempt in range(max_retries + 1):
         try:
             response = response_function(**kwargs)
-            response_content = response.choices[0].message.content
 
-            # Validate response content
-            is_valid_response = _validate_response_content(
-                response_content, name, attempt
-            )
+            # For the new .parse interface, the parsed data is in response.choices[0].message.parsed
+            # and the raw content is in response.choices[0].message.content
+            if hasattr(response.choices[0].message, "parsed"):
+                # New .parse interface - we have structured data
+                parsed_data = response.choices[0].message.parsed
+                response_content = response.choices[0].message.content
+
+                # Validate that we got valid structured data
+                if parsed_data is not None:
+                    # Convert parsed data back to JSON for saving
+                    response_content = response_scheme.model_dump_json(parsed_data)
+                    is_valid_response = True
+                else:
+                    is_valid_response = False
+            else:
+                # Fallback to old interface
+                response_content = response.choices[0].message.content
+                is_valid_response = _validate_response_content(
+                    response_content, image_name, attempt
+                )
 
             token_counts.add_attempt(response, is_retry=False)
 
             if is_valid_response:
                 # Valid response, save files and return
-                _save_response_files(results_dir, name, response_content, base64_image)
+                _save_response_files(
+                    results_dir, image_name, response_content, base64_image
+                )
 
                 return token_counts
             else:
@@ -158,18 +188,22 @@ def process_single_image(
                     # Update retry statistics
                     token_counts.add_attempt(response, is_retry=True)
                     print(
-                        f"Invalid response for {name}, attempt {attempt + 1}/{max_retries + 1}. Retrying..."
+                        f"Invalid response for {image_name}, attempt {attempt + 1}/{max_retries + 1}. Retrying..."
                     )
                 else:
                     # Max retries reached, save invalid response
-                    print(f"Max retries reached for {name}. Saving invalid response.")
+                    print(
+                        f"Max retries reached for {image_name}. Saving invalid response."
+                    )
                     _save_response_files(
-                        results_dir, name, response_content, base64_image
+                        results_dir, image_name, response_content, base64_image
                     )
                     return token_counts
 
         except Exception as e:
-            print(f"API call failed for {name} on attempt {attempt + 1}: {e}")
+            print(
+                f"API call failed for image '{image_name}' on attempt {attempt + 1}: {e}"
+            )
             # if attempt == max_retries:
             #     raise
 
@@ -183,12 +217,12 @@ def process_images_parallel(
     results_dir,
     system_prompt,
     response_function,
-    response_format,
+    response_scheme,
     model_name,
     max_workers=10,
     timeout=300,
     max_retries=5,
-    temperature=0.0,
+    temperature=None,
     dry_run=False,
     max_output_tokens=None,
 ):
@@ -202,13 +236,13 @@ def process_images_parallel(
         future_to_name = {
             executor.submit(
                 process_single_image,
-                name,
                 base64_image,
                 results_dir,
                 system_prompt,
                 response_function,
-                response_format,
+                response_scheme,
                 model_name,
+                name,
                 timeout,
                 max_retries,
                 temperature,
@@ -283,3 +317,37 @@ def process_images_parallel(
             print(f"Total cost estimate: Not available for model {model_name}")
 
     return aggregated_token_counts
+
+
+if __name__ == "__main__":
+    import tempfile
+    from pathlib import Path
+
+    from bubbola.image_data_loader import sanitize_to_images
+    from bubbola.main import system_prompt
+    from bubbola.model_creator import get_client_response_function
+
+    image_path = "/Users/vigji/code/bubbola/tests/assets/single_pages/0088_001_001.png"
+    model_name = "gpt-4o"  # "o4-mini"
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        results_dir = Path(temp_dir)
+
+        base64_image = sanitize_to_images(image_path, return_as_base64=True)
+        image_name, image = next(iter(base64_image.items()))
+        print(image_name)
+
+        response_function, response_scheme = get_client_response_function(
+            model_name, DeliveryNote
+        )
+
+        process_single_image(
+            base64_image=image,
+            results_dir=results_dir,
+            system_prompt=system_prompt,
+            response_function=response_function,
+            response_scheme=response_scheme,
+            model_name=model_name,
+            image_name=image_name,
+            dry_run=False,
+        )

@@ -165,7 +165,7 @@ if __name__ == "__main__":
     results_dir.mkdir(parents=True, exist_ok=True)
 
     # Process each image
-    response_function, response_format = get_client_response_function(
+    response_function, response_scheme = get_client_response_function(
         model_name, DeliveryNote
     )
 
@@ -206,7 +206,7 @@ if __name__ == "__main__":
         results_dir,
         system_prompt,
         response_function,
-        response_format,
+        response_scheme,
         model_name,
         max_workers=args.max_workers,
         timeout=args.timeout,
