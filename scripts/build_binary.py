@@ -61,10 +61,8 @@ def build_binary(output_dir: Path, clean: bool = False) -> None:
         "-m",
         "PyInstaller",
     ]
-    if platform_info["system"] == "macos":
-        cmd.append("--onedir")
-    else:
-        cmd.append("--onefile")
+    # Use --onefile for all platforms for consistency
+    cmd.append("--onefile")
     cmd.extend(
         [
             "--name",
@@ -89,7 +87,6 @@ def build_binary(output_dir: Path, clean: bool = False) -> None:
                 platform_info["pyinstaller_arch"],
                 "--codesign-identity",
                 "-",  # Ad-hoc signing
-                "--no-bundle-python",  # Don't bundle Python to avoid code signing issues
             ]
         )
     elif platform_info["system"] == "windows":
@@ -112,13 +109,13 @@ def build_binary(output_dir: Path, clean: bool = False) -> None:
         binary_path = output_dir / binary_name
 
         if binary_path.exists():
-            print(f"✅ Binary created successfully: {binary_path}")
+            print(f"[SUCCESS] Binary created successfully: {binary_path}")
             print(f"   Size: {binary_path.stat().st_size / (1024 * 1024):.1f} MB")
         else:
-            print("❌ Binary not found after build")
+            print("[ERROR] Binary not found after build")
             sys.exit(1)
     else:
-        print("❌ Build failed:")
+        print("[ERROR] Build failed:")
         print(result.stderr)
         sys.exit(1)
 
