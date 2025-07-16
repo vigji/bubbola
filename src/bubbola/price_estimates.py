@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
+from bubbola.model_creator import get_client_response_function
+
 # Updated prices for 2025-07-15. define it as a constant
 MODEL_PROCES_TIMESTAMP = datetime(2025, 7, 15)
 MODEL_PRICES = {
@@ -176,39 +178,8 @@ def estimate_tokens_from_image_bytes(
 
 
 # ------------------------------------------------------------------
-# OpenAI API calibration
+# OpenAI API calibration using model_creator interface
 # ------------------------------------------------------------------
-
-
-def _build_openai_user_content(
-    text: str,
-    image_b64: str,
-    image_mime_type: str = "image/png",
-    prefix: str = "",
-    suffix: str = "",
-) -> list:
-    """
-    Build a Responses API style content list (multi-part user message).
-    prefix/suffix let you wrap the payload (e.g., instructions).
-    """
-    items = []
-    if prefix:
-        items.append({"type": "text", "text": prefix})
-    # main text
-    if text:
-        items.append({"type": "text", "text": text})
-    # image
-    if image_b64:
-        items.append(
-            {
-                "type": "input_image",
-                "image_base64": image_b64,
-                "mime_type": image_mime_type,
-            }
-        )
-    if suffix:
-        items.append({"type": "text", "text": suffix})
-    return items
 
 
 def _extract_prompt_tokens_from_usage(usage: Any) -> int | None:
@@ -242,316 +213,68 @@ def _extract_prompt_tokens_from_usage(usage: Any) -> int | None:
     return None
 
 
-def _extract_usage_from_responses_obj(resp: Any) -> int | None:
-    """
-    Responses API returns resp.usage or resp.output[0].usage depending on version.
-    We'll inspect a few places.
-    """
-    # direct usage attr?
-    if hasattr(resp, "usage"):
-        tok = _extract_prompt_tokens_from_usage(resp.usage)
-        if tok is not None:
-            return tok
-
-    # Sometimes nested in response.output[]
-    data = getattr(resp, "output", None)
-    if data is not None:
-        if isinstance(data, list):
-            for item in data:
-                usage = getattr(item, "usage", None)
-                tok = _extract_prompt_tokens_from_usage(usage)
-                if tok is not None:
-                    return tok
-                if isinstance(item, dict) and "usage" in item:
-                    tok = _extract_prompt_tokens_from_usage(item["usage"])
-                    if tok is not None:
-                        return tok
-
-    # Fallback to dict conversion
-    try:
-        import json
-
-        obj = resp.model_dump() if hasattr(resp, "model_dump") else resp
-        if not isinstance(obj, dict):
-            obj = json.loads(str(resp))
-        # walk
-        stack = [obj]
-        while stack:
-            cur = stack.pop()
-            if isinstance(cur, dict):
-                tok = _extract_prompt_tokens_from_usage(cur)
-                if tok is not None:
-                    return tok
-                stack.extend(cur.values())
-            elif isinstance(cur, list):
-                stack.extend(cur)
-    except Exception:
-        pass
-    return None
-
-
-def _extract_usage_from_chat_obj(resp: Any) -> int | None:
-    """
-    Chat Completions API shape: resp.usage.prompt_tokens (preferred).
-    """
-    if hasattr(resp, "usage"):
-        return _extract_prompt_tokens_from_usage(resp.usage)
-    if isinstance(resp, dict) and "usage" in resp:
-        return _extract_prompt_tokens_from_usage(resp["usage"])
-    return None
-
-
-def calibrate_via_openai(
-    client: Any,
-    model: str,
-    text: str,
-    image_b64: str,
-    *,
-    image_mime_type: str = "image/png",
-    system: str = "You are a token counting probe. Respond briefly.",
-    user_prefix: str = "",
-    user_suffix: str = "Respond with a short acknowledgement.",
-    max_output_tokens: int = 5,
-    use_responses_api: bool = True,
-    chars_per_token: float = 4.0,
-    tokens_per_word: float = 0.75,
-    min_scale: float = 0.5,
-    max_scale: float = 1.1,
-    **kwargs,
-) -> tuple[float, TokenEstimate, int | None]:
-    """
-    Make a minimal OpenAI call to get *actual* prompt token usage for (text + image_b64).
-    Returns (scale_b64, token_estimate, actual_prompt_tokens).
-
-    Parameters
-    ----------
-    client : OpenAI or compatible client instance (already authenticated).
-    model : str
-    text : str
-    image_b64 : str
-    image_mime_type : str
-    system, user_prefix, user_suffix : str
-        Strings to wrap the calibration prompt if you want.
-    max_output_tokens : int
-        Keep tiny so calibration doesn’t waste quota.
-    use_responses_api : bool
-        If True, call `client.responses.create`; else use legacy chat completions.
-    chars_per_token / tokens_per_word :
-        Passed to `calibrate_scale_b64` + `estimate_tokens`.
-    min_scale / max_scale :
-        Clamp for calibration.
-    **kwargs :
-        Forwarded to API call (e.g., temperature=0).
-
-    Returns
-    -------
-    scale_b64 : float
-        Calibrated Base64 char->token scale.
-    token_estimate : TokenEstimate
-        Using the *new calibrated* scale.
-    actual_prompt_tokens : Optional[int]
-        Prompt token count reported by the API (None if unavailable).
-    """
-    actual_prompt_tokens: int | None = None
-
-    if use_responses_api:
-        # Build multi-part input
-        content = _build_openai_user_content(
-            text=text,
-            image_b64=image_b64,
-            image_mime_type=image_mime_type,
-            prefix=user_prefix,
-            suffix=user_suffix,
-        )
-        resp = client.responses.create(
-            model=model,
-            input=[
-                {"role": "system", "content": [{"type": "text", "text": system}]},
-                {"role": "user", "content": content},
-            ],
-            max_output_tokens=max_output_tokens,
-            **kwargs,
-        )
-        actual_prompt_tokens = _extract_usage_from_responses_obj(resp)
-
-    else:
-        # Legacy chat.completions style (image support varies; using 'image_url' w/data URI)
-        data_uri = f"data:{image_mime_type};base64,{image_b64}"
-        user_content = []
-        if user_prefix:
-            user_content.append({"type": "text", "text": user_prefix})
-        if text:
-            user_content.append({"type": "text", "text": text})
-        user_content.append(
-            {
-                "type": "image_url",
-                "image_url": {"url": data_uri},
-            }
-        )
-        if user_suffix:
-            user_content.append({"type": "text", "text": user_suffix})
-
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user_content},
-            ],
-            max_tokens=max_output_tokens,
-            **kwargs,
-        )
-        actual_prompt_tokens = _extract_usage_from_chat_obj(resp)
-
-    # Derive scale (falls back gracefully if usage missing)
-    if actual_prompt_tokens is None:
-        scale_b64 = (min_scale + max_scale) / 2.0
-    else:
-        scale_b64 = calibrate_scale_b64(
-            text=text,
-            image_b64=image_b64,
-            actual_tokens=actual_prompt_tokens,
-            chars_per_token=chars_per_token,
-            tokens_per_word=tokens_per_word,
-            min_scale=min_scale,
-            max_scale=max_scale,
-        )
-
-    # Produce TokenEstimate w/ calibrated scale
-    token_estimate = estimate_tokens(
-        text=text,
-        image_b64=image_b64,
-        scale_b64=scale_b64,
-        chars_per_token=chars_per_token,
-        tokens_per_word=tokens_per_word,
-    )
-    return scale_b64, token_estimate, actual_prompt_tokens
-
-
-# ------------------------------------------------------------------
-# Async variant
-# ------------------------------------------------------------------
-
-
-async def async_calibrate_via_openai(
-    client: Any,
-    model: str,
-    text: str,
-    image_b64: str,
-    *,
-    image_mime_type: str = "image/png",
-    system: str = "You are a token counting probe. Respond briefly.",
-    user_prefix: str = "",
-    user_suffix: str = "Respond with a short acknowledgement.",
-    max_output_tokens: int = 5,
-    use_responses_api: bool = True,
-    chars_per_token: float = 4.0,
-    tokens_per_word: float = 0.75,
-    min_scale: float = 0.5,
-    max_scale: float = 1.1,
-    **kwargs,
-) -> tuple[float, TokenEstimate, int | None]:
-    """
-    Async wrapper; same semantics as calibrate_via_openai.
-    """
-    actual_prompt_tokens: int | None = None
-
-    if use_responses_api:
-        content = _build_openai_user_content(
-            text=text,
-            image_b64=image_b64,
-            image_mime_type=image_mime_type,
-            prefix=user_prefix,
-            suffix=user_suffix,
-        )
-        resp = await client.responses.create(
-            model=model,
-            input=[
-                {"role": "system", "content": [{"type": "text", "text": system}]},
-                {"role": "user", "content": content},
-            ],
-            max_output_tokens=max_output_tokens,
-            **kwargs,
-        )
-        actual_prompt_tokens = _extract_usage_from_responses_obj(resp)
-
-    else:
-        data_uri = f"data:{image_mime_type};base64,{image_b64}"
-        user_content = []
-        if user_prefix:
-            user_content.append({"type": "text", "text": user_prefix})
-        if text:
-            user_content.append({"type": "text", "text": text})
-        user_content.append(
-            {
-                "type": "image_url",
-                "image_url": {"url": data_uri},
-            }
-        )
-        if user_suffix:
-            user_content.append({"type": "text", "text": user_suffix})
-
-        resp = await client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user_content},
-            ],
-            max_tokens=max_output_tokens,
-            **kwargs,
-        )
-        actual_prompt_tokens = _extract_usage_from_chat_obj(resp)
-
-    if actual_prompt_tokens is None:
-        scale_b64 = (min_scale + max_scale) / 2.0
-    else:
-        scale_b64 = calibrate_scale_b64(
-            text=text,
-            image_b64=image_b64,
-            actual_tokens=actual_prompt_tokens,
-            chars_per_token=chars_per_token,
-            tokens_per_word=tokens_per_word,
-            min_scale=min_scale,
-            max_scale=max_scale,
-        )
-
-    token_estimate = estimate_tokens(
-        text=text,
-        image_b64=image_b64,
-        scale_b64=scale_b64,
-        chars_per_token=chars_per_token,
-        tokens_per_word=tokens_per_word,
-    )
-    return scale_b64, token_estimate, actual_prompt_tokens
-
-
-# ------------------------------------------------------------------
-# CLI-ish demo
-# ------------------------------------------------------------------
 if __name__ == "__main__":
-    # Minimal smoke test (won't call API unless you uncomment).
-    sample_text = "Please describe the contents of the following image."
-    sample_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAUA" * 1000  # fake data
+    import base64
+    from pathlib import Path
 
-    # Local heuristic estimate
-    est = estimate_tokens(sample_text, sample_b64)
+    import requests
+    from PIL import Image
+
+    temp_image_path = Path("stonehenge.png")
+
+    model_name = (
+        "gpt-4o"  # "mistralai/mistral-small-3.2-24b-instruct:free"  #  "gpt-4o-mini"  #
+    )
+
+    # Example calibration call (commented; requires valid API creds & real image data)
+
+    response = requests.get(
+        "https://commons.wikimedia.org/wiki/Special:FilePath/Stonehenge.jpg?width=100&format=png"
+    )
+    # image_base64 = base64.b64encode(response.content).decode("utf-8")
+
+    image_long_edge = 756
+    image = Image.open(
+        "/Users/vigji/code/bubbola/tests/assets/single_pages/0088_001_001.png"
+    )
+    image.thumbnail((image_long_edge, image_long_edge))
+    image.save(temp_image_path)
+    with open(temp_image_path, "rb") as image_file:
+        image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
+        print("length of image_base64:", len(image_base64))
+
+    response_function = get_client_response_function(model_name)
+
+    actual_prompt_tokens: int | None = None
+
+    # Build the user content with image
+    data_uri = f"data:image/png;base64,{image_base64}"
+
+    sample_text = ""  # "Please describe the contents of the following image."*4
+    # Make the API call
+    resp = response_function(
+        model=model_name,
+        messages=[
+            # {"role": "system", "content": "You are a token counting probe. Respond briefly."},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": sample_text},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": data_uri},
+                    },
+                ],
+            },
+        ],
+        max_tokens=3,
+    )
+    print(resp.choices[0].message.content)
+    print("prompt tokens: ", resp.usage.prompt_tokens)
+    actual_prompt_tokens = _extract_prompt_tokens_from_usage(resp.usage)
+    # print(actual_prompt_tokens)
+
+    est = estimate_tokens(sample_text, image_base64)
     print("Heuristic estimate:", est)
 
-    # Example calibration call (commented; requires valid OpenAI creds & real image data)
-    """
-    from openai import OpenAI
-    client = OpenAI()  # assumes env var OPENAI_API_KEY set
-
-    scale, est2, actual = calibrate_via_openai(
-        client=client,
-        model="gpt-4o-mini",
-        text=sample_text,
-        image_b64=sample_b64,
-        image_mime_type="image/png",
-        user_suffix="Just say 'ok'.",
-        max_output_tokens=1,
-        temperature=0,
-    )
-    print("Actual prompt tokens:", actual)
-    print("Calibrated scale:", scale)
-    print("Re-estimate:", est2)
-    """
+    temp_image_path.unlink()
