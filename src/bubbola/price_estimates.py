@@ -1,9 +1,14 @@
+import base64
 import math
-from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any
+from io import BytesIO
+
+from dotenv import load_dotenv
+from PIL import Image
 
 from bubbola.model_creator import get_client_response_function
+
+load_dotenv("/Users/vigji/code/bubbola/config.env")
 
 # Updated prices for 2025-07-15. define it as a constant
 MODEL_PROCES_TIMESTAMP = datetime(2025, 7, 15)
@@ -15,7 +20,6 @@ MODEL_PRICES_PER_M_TOKEN = {
     "o4-mini": {"in": 1.1, "out": 4.40},
     "o3": {"in": 2, "out": 8},
 }
-PRICE_PER_X_TOKENS = 1_000_000
 
 
 def get_per_token_price(model_name):
@@ -32,18 +36,31 @@ def get_per_token_price(model_name):
         )
         return None
 
-    return MODEL_PRICES_PER_M_TOKEN[model_name]
+    return {k: v / 1_000_000 for k, v in MODEL_PRICES_PER_M_TOKEN[model_name].items()}
 
 
-def get_cost_estimate(model_name, prompt, completion_template):
+def get_cost_estimate(model_name, prompt_tokens, completion_tokens):
     p = get_per_token_price(model_name)
     if p is None:
         return None
-    return (prompt * p["in"] + completion_template * p["out"]) / PRICE_PER_X_TOKENS
+    return prompt_tokens * p["in"] + completion_tokens * p["out"]
+
+
+def get_image_size_from_base64(b64_string: str) -> tuple[int, int]:
+    # Remove any header like "data:image/png;base64,"
+    if "," in b64_string:
+        b64_string = b64_string.split(",")[1]
+
+    # Decode base64
+    image_data = base64.b64decode(b64_string)
+
+    # Open the image using Pillow
+    with Image.open(BytesIO(image_data)) as img:
+        return img.width, img.height
 
 
 def calculate_image_tokens(
-    width: int, height: int, model_name: str, detail: str = "auto"
+    width: int, height: int, model_name: str, detail: str = "high"
 ) -> int:
     """
     Calculate the number of tokens an image will consume for analysis, based on model and detail level.
@@ -75,11 +92,11 @@ def calculate_image_tokens(
         raise ValueError(f"Unknown model '{model_name}'")
 
     # Auto-detail logic: small images use low, others use high
-    if d == "auto":
-        if max(width, height) <= 512:
-            d = "low"
-        else:
-            d = "high"
+    # if d == "auto":
+    #     if max(width, height) <= 512:
+    #         d = "low"
+    #     else:
+    #         d = "high"
 
     # Low-detail cost
     if d == "low":
@@ -102,20 +119,6 @@ def calculate_image_tokens(
     return base_tokens + tile_tokens * n_tiles
 
 
-# ------------------------------------------------------------------
-# Core heuristics (unchanged from previous snippet, lightly refactored)
-# ------------------------------------------------------------------
-
-
-@dataclass
-class TokenEstimate:
-    est: int
-    low: int
-    high: int
-    scale_b64: float
-    text_params: tuple[float, float]  # (chars_per_token, tokens_per_word)
-
-
 def _count_words(text: str) -> int:
     return len(text.split())
 
@@ -134,138 +137,23 @@ def _estimate_text_tokens(
     return max(char_based, word_based)
 
 
-def _bounds_text_tokens(
-    text: str,
-    low_chars_per_token: float = 4.5,
-    high_chars_per_token: float = 3.5,
-) -> tuple[float, float]:
-    n_chars = len(text)
-    if n_chars == 0:
-        return 0.0, 0.0
-    low = n_chars / low_chars_per_token
-    high = n_chars / high_chars_per_token
-    return low, high
-
-
 def estimate_tokens(
     text: str,
     image_b64: str,
-    scale_b64: float = 0.85,
+    model_name: str,
     chars_per_token: float = 4.0,
     tokens_per_word: float = 0.75,
-    low_b64_scale: float = 0.7,
-    high_b64_scale: float = 1.0,
-    low_text_chars_per_token: float = 4.5,
-    high_text_chars_per_token: float = 3.5,
-) -> TokenEstimate:
+) -> int:
     t_text = _estimate_text_tokens(
         text,
         chars_per_token=chars_per_token,
         tokens_per_word=tokens_per_word,
     )
-    t_text_low, t_text_high = _bounds_text_tokens(
-        text,
-        low_chars_per_token=low_text_chars_per_token,
-        high_chars_per_token=high_text_chars_per_token,
-    )
-    n_chars_b64 = len(image_b64)
-    t_b64 = scale_b64 * n_chars_b64
-    t_b64_low = low_b64_scale * n_chars_b64
-    t_b64_high = high_b64_scale * n_chars_b64
 
-    est = int(math.ceil(t_text + t_b64))
-    low = int(math.ceil(t_text_low + t_b64_low))
-    high = int(math.ceil(t_text_high + t_b64_high))
+    w, h = get_image_size_from_base64(image_b64)
+    t_image = calculate_image_tokens(w, h, model_name)
 
-    return TokenEstimate(
-        est=est,
-        low=low,
-        high=high,
-        scale_b64=scale_b64,
-        text_params=(chars_per_token, tokens_per_word),
-    )
-
-
-def calibrate_scale_b64(
-    text: str,
-    image_b64: str,
-    actual_tokens: int,
-    chars_per_token: float = 4.0,
-    tokens_per_word: float = 0.75,
-    min_scale: float = 0.5,
-    max_scale: float = 1.1,
-) -> float:
-    n_chars_b64 = len(image_b64)
-    if n_chars_b64 == 0:
-        return (min_scale + max_scale) / 2.0
-    t_text_est = _estimate_text_tokens(
-        text,
-        chars_per_token=chars_per_token,
-        tokens_per_word=tokens_per_word,
-    )
-    residual = actual_tokens - t_text_est
-    if residual <= 0:
-        return min_scale
-    raw_scale = residual / n_chars_b64
-    return max(min_scale, min(max_scale, raw_scale))
-
-
-def estimate_b64_chars_from_image_bytes(img_num_bytes: int) -> int:
-    if img_num_bytes <= 0:
-        return 0
-    return 4 * math.ceil(img_num_bytes / 3)
-
-
-def estimate_tokens_from_image_bytes(
-    text: str,
-    img_num_bytes: int,
-    scale_b64: float = 0.85,
-    **kwargs,
-) -> TokenEstimate:
-    n_chars_b64 = estimate_b64_chars_from_image_bytes(img_num_bytes)
-    dummy_b64 = "A" * n_chars_b64
-    return estimate_tokens(
-        text=text,
-        image_b64=dummy_b64,
-        scale_b64=scale_b64,
-        **kwargs,
-    )
-
-
-# ------------------------------------------------------------------
-# OpenAI API calibration using model_creator interface
-# ------------------------------------------------------------------
-
-
-def _extract_prompt_tokens_from_usage(usage: Any) -> int | None:
-    """
-    Try several known usage shapes; return int or None.
-    Known possibilities:
-      usage.prompt_tokens
-      usage.input_tokens
-      usage.total_tokens (fallback if no prompt-specific field)
-    Accept dict or obj w/ attributes.
-    """
-    if usage is None:
-        return None
-    # dict-like
-    if isinstance(usage, dict):
-        for k in (
-            "prompt_tokens",
-            "input_tokens",
-            "prompt_tokens_total",
-            "total_tokens",
-        ):
-            if k in usage and usage[k] is not None:
-                return int(usage[k])
-        return None
-    # attr-like
-    for k in ("prompt_tokens", "input_tokens", "prompt_tokens_total", "total_tokens"):
-        if hasattr(usage, k):
-            v = getattr(usage, k)
-            if v is not None:
-                return int(v)
-    return None
+    return int(math.ceil(t_text + t_image))
 
 
 if __name__ == "__main__":
@@ -286,15 +174,15 @@ if __name__ == "__main__":
     )
     # image_base64 = base64.b64encode(response.content).decode("utf-8")
 
-    image_long_edge = 2048
+    image_long_edge = 256
     image = Image.open(
         "/Users/vigji/code/bubbola/tests/assets/single_pages/0088_001_001.png"
     )
     image.thumbnail((image_long_edge, image_long_edge))
+    print("image size: ", image.size)
     image.save(temp_image_path)
     with open(temp_image_path, "rb") as image_file:
         image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
-        print("length of image_base64:", len(image_base64))
 
     response_function = get_client_response_function(model_name)
 
@@ -304,6 +192,7 @@ if __name__ == "__main__":
     data_uri = f"data:image/png;base64,{image_base64}"
 
     sample_text = ""  # "Please describe the contents of the following image."*4
+    max_tokens = 3
     # Make the API call
     resp = response_function(
         model=model_name,
@@ -320,17 +209,26 @@ if __name__ == "__main__":
                 ],
             },
         ],
-        max_tokens=3,
+        max_tokens=max_tokens,
     )
-    print(resp.choices[0].message.content)
-    print("prompt tokens: ", resp.usage.prompt_tokens)
-    actual_prompt_tokens = _extract_prompt_tokens_from_usage(resp.usage)
-    # print(actual_prompt_tokens)
+    print("model name: ", model_name)
+    actual_prompt_tokens = resp.usage.prompt_tokens
+    print("actual prompt tokens: ", actual_prompt_tokens)
 
-    est = estimate_tokens(sample_text, image_base64)
-    print("Heuristic estimate:", est)
+    est_prompt_tokens = estimate_tokens(sample_text, image_base64, model_name)
+    print("Heuristic estimate:", est_prompt_tokens)
 
     image_tokens = calculate_image_tokens(image.width, image.height, model_name)
     print("image tokens: ", image_tokens)
+
+    actual_cost_estimate = get_cost_estimate(
+        model_name, actual_prompt_tokens, len(resp.choices[0].message.content.split())
+    )
+    print("actual cost estimate: ", actual_cost_estimate)
+
+    est_cost_estimate = get_cost_estimate(model_name, est_prompt_tokens, max_tokens)
+    print("estimated cost estimate: ", est_cost_estimate)
+
+    print(resp.choices[0].message.content)
 
     temp_image_path.unlink()

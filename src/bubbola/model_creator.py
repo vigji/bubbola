@@ -63,6 +63,7 @@ class OpenAIModel(LLMModel):
             name=name,
             client_class=OpenAI,
             base_url=None,
+            # base_url="https://openrouter.ai/api/v1",
             api_key_env_var="OPENAI_API_KEY",
         )
 
@@ -118,8 +119,8 @@ MODEL_NAME_TO_CLASS_MAP = {
     # OpenAI models
     "gpt-4o": OpenAIModel,
     "gpt-4o-mini": OpenAIModel,
-    "gpt-4": OpenAIModel,
-    "o3-mini": OpenAIModel,
+    # "gpt-4": OpenAIModel,
+    "o3": OpenAIModel,
     "o4-mini": OpenAIModel,
 }
 
@@ -219,7 +220,7 @@ if __name__ == "__main__":
                             {
                                 "type": "image_url",
                                 "image_url": {
-                                    "url": f"data:image/jpeg;base64,{image_base64}"
+                                    "url": f"data:image/png;base64,{image_base64}"
                                 },
                             }
                         ],
