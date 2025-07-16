@@ -1,15 +1,16 @@
 import os
+from dataclasses import dataclass
 
 from dotenv import load_dotenv
 from openai import OpenAI
 
-load_dotenv("/Users/vigji/code/ai-bubbles/config.env")
-print(os.getenv("DEEPINFRA_TOKEN"))
+# Load environment variables
+load_dotenv("/Users/vigji/code/bubbola/config.env")
 
 
 class MockModelClient:
-    """ensure in the shortest way that MockModelClient().chat.completions.create
-    is a valid function that returns a response where response.choices[0].message.content is an empty string.
+    """Mock client that returns empty responses for testing.
+    Emulates the OpenAI client interface.
     """
 
     def __init__(self):
@@ -19,13 +20,6 @@ class MockModelClient:
     @property
     def completions(self):
         return self
-
-    @property
-    def beta(self):
-        return self
-
-    def parse(self, **kwargs):
-        return self.create(**kwargs)
 
     def create(self, **kwargs):
         """Create a response with empty content and zero usage tokens."""
@@ -46,101 +40,194 @@ class MockModelClient:
             },
         )()
 
-    def batch_create(self, **kwargs):
-        """Create a batch response with empty content and zero usage tokens."""
-        return [self.create() for _ in range(len(kwargs.get("messages", [])))]
+
+@dataclass
+class LLMModel:
+    name: str
+    client_class: type[OpenAI]  # TODO: handle better
+    base_url: str
+    api_key_env_var: str
+
+    @property
+    def api_key(self):
+        return os.getenv(self.api_key_env_var)
+
+    @property
+    def client(self):
+        return self.client_class(api_key=self.api_key, base_url=self.base_url)
+
+
+class OpenAIModel(LLMModel):
+    def __init__(self, name: str = "openai"):
+        super().__init__(
+            name=name,
+            client_class=OpenAI,
+            base_url=None,
+            api_key_env_var="OPENAI_API_KEY",
+        )
+
+
+# class LocalModel(LLMModel):
+#     def __init__(self, name: str = "local"):
+#         super().__init__(
+#             name=name,
+#             client_class=OpenAI,
+#             base_url="http://localhost:11434/v1",
+#             api_key_env_var=""
+#         )
+
+
+# class DeepInfraModel(LLMModel):
+#     def __init__(self, name: str = "deepinfra"):
+#         super().__init__(
+#             name=name,
+#             client_class=OpenAI,
+#             base_url="https://api.deepinfra.com/v1/openai",
+#             api_key_env_var="DEEPINFRA_TOKEN"
+#         )
+
+
+class OpenRouterModel(LLMModel):
+    def __init__(self, name: str = "openrouter"):
+        super().__init__(
+            name=name,
+            client_class=OpenAI,
+            base_url="https://openrouter.ai/api/v1",
+            api_key_env_var="OPENROUTER",
+        )
+
+
+class MockModel(LLMModel):
+    def __init__(self, name: str = "mock"):
+        super().__init__(
+            name=name, client_class=MockModelClient, base_url="", api_key_env_var=""
+        )
+
+
+MODEL_NAME_TO_CLASS_MAP = {
+    # OpenRouter models
+    "meta-llama/llama-4-scout": OpenRouterModel,
+    "meta-llama/llama-4-maverick": OpenRouterModel,
+    "google/gemma-3-27b-it:free": OpenRouterModel,
+    "anthropic/claude-3-haiku:beta": OpenRouterModel,
+    "mistralai/mistral-small-3.2-24b-instruct:free": OpenRouterModel,
+    # Local models
+    # "gemma3:12b": LocalModel,
+    # DeepInfra models
+    # "meta-llama/Llama-3.2": DeepInfraModel,
+    # OpenAI models
+    "gpt-4o": OpenAIModel,
+    "gpt-4o-mini": OpenAIModel,
+    "gpt-4": OpenAIModel,
+    "o3-mini": OpenAIModel,
+    "o4-mini": OpenAIModel,
+}
 
 
 def get_model_client_response(required_model: str, force_openrouter=False):
+    """Get the appropriate model client based on the model name.
+
+    Args:
+        required_model: The name of the model to use
+        force_openrouter: If True, force using OpenRouter for supported models
+
+    Returns:
+        The appropriate model client instance
+    """
+    # Handle mock/test models
     if "mock" in required_model or "test" in required_model:
         return MockModelClient()
-    elif "gpt" in required_model and not force_openrouter:
-        return OpenAI()
-    elif "gemma3:12b" in required_model and not force_openrouter:
-        return OpenAI(
-            base_url="http://localhost:11434/v1",
-        )
-    elif "meta-llama/Llama-3.2" in required_model and not force_openrouter:
-        return OpenAI(
-            api_key=os.getenv("DEEPINFRA_TOKEN"),
-            base_url="https://api.deepinfra.com/v1/openai",
-        )
-    elif [
-        any(
-            model in required_model
-            for model in [
-                "allenai/molmo-7b-d:free",
-                "meta-llama/llama-4-scout",
-                "bytedance-research/ui-tars-72b:free",
-                "qwen/qwen2.5-vl-3b-instruct:free",
-                "meta-llama/llama-4-maverick",
-                "google/gemini-2.5-pro-exp-03-25:free",  # could be best for now!
-                "google/gemma-3-27b-it:free",
-                "anthropic/claude-3-haiku:beta",
-            ]
-        )
-    ]:
-        return OpenAI(
-            api_key=os.getenv("OPENROUTER"),
-            base_url="https://openrouter.ai/api/v1",
-        )
-    else:
-        raise ValueError(f"Model {required_model} not supported")
+
+    # Check if model is in our mapping
+    if required_model in MODEL_NAME_TO_CLASS_MAP:
+        model_class = MODEL_NAME_TO_CLASS_MAP[required_model]
+
+        # If forcing OpenRouter and model supports it, use OpenRouter
+        if force_openrouter and model_class in [
+            OpenAIModel,
+            # LocalModel,
+            # DeepInfraModel,
+        ]:
+            print("Forcing OpenRouter usage")
+            return OpenRouterModel().client
+
+        # Use the mapped model class
+        return model_class().client
+
+    # If model not found in mapping, raise error
+    raise ValueError(
+        f"Model {required_model} not found in MODEL_NAME_TO_CLASS_MAP. Please add it to the mapping."
+    )
 
 
-def get_client_response_function(
-    required_model: str, response_scheme=None, batch=False, force_openrouter=False
-):
+def get_client_response_function(required_model: str, force_openrouter=False):
     client = get_model_client_response(required_model, force_openrouter)
 
-    if required_model == "gpt-4o-mini" or "test" in required_model:
-        response_function = (
-            client.beta.chat.completions.batch_create
-            if batch
-            else client.beta.chat.completions.parse
-        )
-        response_format = response_scheme
-    else:
-        if batch:
-            raise ValueError("Modify the code to support batch for this model")
-        response_function = client.chat.completions.create
-        if response_scheme is not None:
-            response_format = {"type": "json_object"}
+    # Use the standard chat completions API for all models
+    response_function = client.chat.completions.create
 
-    return response_function, response_format
+    return response_function
 
 
 if __name__ == "__main__":
-    model_name = "bytedance-research/ui-tars-72b:free"
-    client = get_model_client_response(model_name)
+    import base64
 
-    from pydantic import BaseModel
+    import requests
 
-    class Description(BaseModel):
-        description: str
-        subject: str
-        color: str
+    # Test different model types
+    test_all_models = True
 
-    completion = client.beta.chat.completions.parse(
-        model=model_name,
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a helpful assistant that can answer questions and help with tasks. When asked to describe an image, reply with a json scheme with the following fields: description, subject, color.",
-            },
-            {
-                "role": "user",
-                "content": [
+    for model_name in MODEL_NAME_TO_CLASS_MAP.keys():
+        print(f"\nTesting model: {model_name}")
+        try:
+            client = get_model_client_response(model_name)
+            print(f"✓ Successfully created client for {model_name}")
+        except Exception as e:
+            print(f"✗ Failed to create client for {model_name}: {e}")
+
+    # Test the full pipeline with a specific model
+    model_name = "mistralai/mistral-small-3.2-24b-instruct:free"
+
+    response_function = get_client_response_function(model_name)
+
+    test_image_url = "https://commons.wikimedia.org/wiki/Special:FilePath/Stonehenge.jpg?width=100&format=png"
+
+    # get and convert to base64
+    response = requests.get(test_image_url)
+    image_base64 = base64.b64encode(response.content).decode("utf-8")
+
+    test_all = True
+    if test_all:
+        models_to_test = MODEL_NAME_TO_CLASS_MAP.keys()
+    else:
+        models_to_test = ["mistralai/mistral-small-3.2-24b-instruct:free"]
+
+    for model_name in models_to_test:
+        ##  Note: This would require actual API keys to run
+        print(f"\nTesting model: {model_name}")
+        try:
+            completion = response_function(
+                model=model_name,
+                messages=[
                     {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
-                        },
-                    }
+                        "role": "system",
+                        "content": "Describe the image in a short sentence.",
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{image_base64}"
+                                },
+                            }
+                        ],
+                    },
                 ],
-            },
-        ],
-        response_format={"type": "json_object"},
-        # response_format=Description
-    )
-    print([c.message.content for c in completion.choices])
+            )
+            print(completion.choices[0].message.content)
+        except Exception as e:
+            print(f"✗ Failed to create client for {model_name}: {e}")
+
+        print("--------------------------------")
