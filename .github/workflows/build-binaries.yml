@@ -71,6 +71,16 @@ jobs:
         path: dist/${{ matrix.target }}/bubbola*
         retention-days: 30
 
+    - name: Test built binary
+      run: |
+        if [[ "${{ matrix.os }}" == windows* ]]; then
+          dist\${{ matrix.target }}\bubbola.exe sanitize tests/assets/0088_001.pdf
+        else
+          chmod +x dist/${{ matrix.target }}/bubbola* || true
+          dist/${{ matrix.target }}/bubbola* sanitize tests/assets/0088_001.pdf
+        fi
+      shell: bash
+
   # Create release when tag is pushed
   release:
     needs: build
