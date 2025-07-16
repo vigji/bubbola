@@ -60,19 +60,26 @@ def build_binary(output_dir: Path, clean: bool = False) -> None:
         sys.executable,
         "-m",
         "PyInstaller",
-        "--onefile",
-        "--name",
-        "bubbola",
-        "--distpath",
-        str(output_dir),
-        "--workpath",
-        "build",
-        "--specpath",
-        ".",
-        "--clean",
-        "--noconfirm",
-        "src/bubbola/cli.py",
     ]
+    if platform_info["system"] == "macos":
+        cmd.append("--onedir")
+    else:
+        cmd.append("--onefile")
+    cmd.extend(
+        [
+            "--name",
+            "bubbola",
+            "--distpath",
+            str(output_dir),
+            "--workpath",
+            "build",
+            "--specpath",
+            ".",
+            "--clean",
+            "--noconfirm",
+            "src/bubbola/cli.py",
+        ]
+    )
 
     # Platform-specific options
     if platform_info["system"] == "macos":
@@ -82,6 +89,7 @@ def build_binary(output_dir: Path, clean: bool = False) -> None:
                 platform_info["pyinstaller_arch"],
                 "--codesign-identity",
                 "-",  # Ad-hoc signing
+                "--no-bundle-python",  # Don't bundle Python to avoid code signing issues
             ]
         )
     elif platform_info["system"] == "windows":

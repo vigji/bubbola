@@ -1,6 +1,8 @@
 # Build System Documentation
 
-This document provides quick reference for building Bubbola binaries.
+This document provides quick reference for building Bubbola binaries using our unified build system.
+
+**Unified Approach:** The same build script (`scripts/build_binary.py`) is used both locally and in GitHub Actions, ensuring consistency across all platforms.
 
 ## Quick Start
 
@@ -17,25 +19,21 @@ make build
 
 ## Build Commands
 
-### Using Makefile (Recommended)
+### Recommended: Using Makefile
 ```bash
 make build          # Build binary
 make build-clean    # Clean and build
 make clean          # Clean artifacts
 ```
 
-### Using Build Script
+### Alternative: Direct Build Script
 ```bash
 python scripts/build_binary.py
 python scripts/build_binary.py --clean
 python scripts/build_binary.py --output-dir ./custom-dist
 ```
 
-### Using PyInstaller Directly
-```bash
-pyinstaller bubbola.spec
-pyinstaller --onefile --name bubbola src/bubbola/cli.py
-```
+
 
 ## Supported Platforms
 
@@ -69,7 +67,7 @@ git push origin v1.0.0
 4. **Windows antivirus**: May trigger false positives
 
 ### Build Dependencies
-- Python 3.12
+- Python 3.11
 - PyInstaller >= 6.0.0
 - pyinstaller-hooks-contrib >= 2023.0
 

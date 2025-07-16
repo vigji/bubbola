@@ -28,7 +28,7 @@ bubbola/
 
 ## Development Setup
 
-**Requirements:** Python 3.12
+**Requirements:** Python 3.11
 
 1. **Clone the repository:**
    ```bash
@@ -56,15 +56,17 @@ bubbola/
 
 ## Building Binaries
 
-Bubbola can be compiled into standalone executables for multiple platforms using PyInstaller.
+Bubbola can be compiled into standalone executables for multiple platforms using PyInstaller. The build system uses a **single, unified approach** that works both locally and in GitHub Actions.
+
+**Note:** We use `make build` for local development and the same build script is used automatically in GitHub Actions.
 
 ### Local Binary Build
 
 **Prerequisites:**
-- Python 3.12
+- Python 3.11
 - Build dependencies installed: `pip install -e ".[build]"`
 
-**Quick Build:**
+**Recommended Build Method:**
 ```bash
 # Build for current platform
 make build
@@ -73,9 +75,9 @@ make build
 make build-clean
 ```
 
-**Manual Build:**
+**Direct Build Script:**
 ```bash
-# Using the build script
+# Using the build script directly
 python scripts/build_binary.py
 
 # With custom output directory
@@ -85,14 +87,7 @@ python scripts/build_binary.py --output-dir ./my-binaries
 python scripts/build_binary.py --clean
 ```
 
-**Using PyInstaller directly:**
-```bash
-# Build using the spec file
-pyinstaller bubbola.spec
 
-# Build with custom options
-pyinstaller --onefile --name bubbola src/bubbola/cli.py
-```
 
 ### Supported Platforms
 
