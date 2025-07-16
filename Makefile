@@ -1,47 +1,50 @@
-.PHONY: help install install-dev test lint format clean build dist
+.PHONY: help install install-dev build clean test lint format check
 
-help:  ## Show this help message
-	@echo "Available commands:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+# Default target
+help:
+	@echo "Available targets:"
+	@echo "  install     - Install the package in development mode"
+	@echo "  install-dev - Install development dependencies"
+	@echo "  build       - Build standalone binary"
+	@echo "  build-clean - Clean and build binary"
+	@echo "  clean       - Clean build artifacts"
+	@echo "  test        - Run tests"
+	@echo "  lint        - Run linting checks"
+	@echo "  format      - Format code"
+	@echo "  check       - Run all checks (lint + test)"
 
-install:  ## Install the package in development mode
-	uv pip install -e .
+# Installation
+install:
+	pip install -e .
 
-install-dev:  ## Install the package with development dependencies
-	uv pip install -e ".[dev]"
+install-dev:
+	pip install -e ".[dev,build]"
 
-uv-sync:  ## Sync dependencies with uv
-	uv sync
+# Building
+build:
+	python scripts/build_binary.py
 
-uv-run:  ## Run the application with uv
-	uv run python -m bubbola.cli
+build-clean:
+	python scripts/build_binary.py --clean
 
-test:  ## Run tests
-	pytest
-
-lint:  ## Run linting checks
-	ruff check src/ tests/
-	mypy src/
-
-format:  ## Format code with ruff
-	ruff format src/ tests/
-	ruff check --fix src/ tests/
-
-clean:  ## Clean build artifacts
+# Cleaning
+clean:
 	rm -rf build/
 	rm -rf dist/
-	rm -rf *.egg-info/
-	find . -type d -name __pycache__ -exec rm -rf {} +
-	find . -type f -name "*.pyc" -delete
+	rm -f bubbola.spec
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 
-build: clean  ## Build the executable with PyInstaller
-	pyinstaller build.spec
+# Testing
+test:
+	pytest
 
-dist: build  ## Create distribution (alias for build)
-	@echo "Distribution created in dist/ directory"
+# Linting and formatting
+lint:
+	ruff check src/ tests/ scripts/
 
-run:  ## Run the application
-	uv run python -m bubbola.cli
+format:
+	ruff format src/ tests/ scripts/
 
-run-exe:  ## Run the built executable
-	./dist/bubbola/bubbola 
+# All checks
+check: lint test 

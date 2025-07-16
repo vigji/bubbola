@@ -34,6 +34,10 @@ dev = [
     "mypy>=1.0.0",
     "pre-commit>=4.2.0",
 ]
+build = [
+    "pyinstaller>=6.0.0",
+    "pyinstaller-hooks-contrib>=2023.0",
+]
 
 [project.scripts]
 bubbola = "bubbola.cli:main"
