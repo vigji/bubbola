@@ -126,6 +126,7 @@ def process_single_image(
     kwargs = {
         "model": model_name,
         "temperature": temperature,
+        "response_format": response_scheme,
         # "max_completion_tokens": max_output_tokens,
     }
 
@@ -337,16 +338,14 @@ if __name__ == "__main__":
         image_name, image = next(iter(base64_image.items()))
         print(image_name)
 
-        response_function, response_scheme = get_client_response_function(
-            model_name, DeliveryNote
-        )
+        response_function = get_client_response_function(model_name, DeliveryNote)
 
         process_single_image(
             base64_image=image,
             results_dir=results_dir,
             system_prompt=system_prompt,
             response_function=response_function,
-            response_scheme=response_scheme,
+            response_scheme=DeliveryNote,
             model_name=model_name,
             image_name=image_name,
             dry_run=False,
