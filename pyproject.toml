@@ -40,7 +40,7 @@ build = [
 ]
 
 [project.scripts]
-bubbola = "bubbola.cli:main"
+bubbola = "bubbola:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

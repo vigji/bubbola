@@ -51,52 +51,26 @@ def build_binary(output_dir: Path, clean: bool = False) -> None:
         for path in ["build", "dist"]:
             if Path(path).exists():
                 shutil.rmtree(path)
-        spec_file = Path("bubbola.spec")
-        if spec_file.exists():
-            spec_file.unlink()
+        # Don't delete the spec file as it's part of the build configuration
 
-    # PyInstaller command
+    # PyInstaller command - use __init__.py as entry point
     cmd = [
         sys.executable,
         "-m",
         "PyInstaller",
+        "--onefile",
+        "--name",
+        "bubbola",
+        "--distpath",
+        str(output_dir),
+        "--workpath",
+        "build",
+        "--clean",
+        "--noconfirm",
+        "src/bubbola/__init__.py",
     ]
-    # Use --onefile for all platforms for consistency
-    cmd.append("--onefile")
-    cmd.extend(
-        [
-            "--name",
-            "bubbola",
-            "--distpath",
-            str(output_dir),
-            "--workpath",
-            "build",
-            "--specpath",
-            ".",
-            "--clean",
-            "--noconfirm",
-            "src/bubbola/cli.py",
-        ]
-    )
 
-    # Platform-specific options
-    if platform_info["system"] == "macos":
-        cmd.extend(
-            [
-                "--target-arch",
-                platform_info["pyinstaller_arch"],
-                "--codesign-identity",
-                "-",  # Ad-hoc signing
-            ]
-        )
-    elif platform_info["system"] == "windows":
-        cmd.extend(
-            [
-                "--target-arch",
-                platform_info["pyinstaller_arch"],
-                "--uac-admin",  # Request admin privileges if needed
-            ]
-        )
+    # Platform-specific options are handled in the spec file
 
     print(f"Building for {platform_info['system']} ({platform_info['arch']})...")
     print(f"Command: {' '.join(cmd)}")

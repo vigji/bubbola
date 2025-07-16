@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI entry point for bubbola."""
+"""Main entry point when running bubbola as a module."""
 
 from bubbola import main
 
