@@ -19,6 +19,7 @@ MODEL_PRICES_PER_M_TOKEN = {
     "gpt-4.1": {"in": 2.00, "out": 8.00},
     "o4-mini": {"in": 1.1, "out": 4.40},
     "o3": {"in": 2, "out": 8},
+    "mistralai/mistral-small-3.2-24b-instruct:free": {"in": 0.0, "out": 0.0},
 }
 
 
@@ -46,7 +47,7 @@ def get_cost_estimate(model_name, prompt_tokens, completion_tokens):
     return prompt_tokens * p["in"] + completion_tokens * p["out"]
 
 
-def get_image_size_from_base64(b64_string: str) -> tuple[int, int]:
+def _get_image_size_from_base64(b64_string: str) -> tuple[int, int]:
     # Remove any header like "data:image/png;base64,"
     if "," in b64_string:
         b64_string = b64_string.split(",")[1]
@@ -59,7 +60,7 @@ def get_image_size_from_base64(b64_string: str) -> tuple[int, int]:
         return img.width, img.height
 
 
-def calculate_image_tokens(
+def _estimate_image_tokens_number(
     width: int, height: int, model_name: str, detail: str = "high"
 ) -> int:
     """
@@ -126,10 +127,13 @@ def calculate_image_tokens(
         base, per_tile = 2833, 5667
     elif m in ("o1", "o1-pro", "o3"):
         base, per_tile = 75, 150
-    elif m == "computer-use-preview":
+    elif (
+        m == "computer-use-preview"
+        or m == "mistralai/mistral-small-3.2-24b-instruct:free"
+    ):
         base, per_tile = 65, 129
     else:
-        raise ValueError(f"Unknown model '{model_name}'")
+        raise ValueError(f"No known image token calculation for model '{model_name}'")
 
     if d == "low":
         return base
@@ -156,7 +160,7 @@ def _count_words(text: str) -> int:
     return len(text.split())
 
 
-def _estimate_text_tokens(
+def _estimate_text_tokens_number(
     text: str,
     chars_per_token: float = 4.0,
     tokens_per_word: float = 0.75,
@@ -170,21 +174,21 @@ def _estimate_text_tokens(
     return max(char_based, word_based)
 
 
-def estimate_tokens(
+def estimate_total_tokens_number(
     text: str,
     image_b64: str,
     model_name: str,
     chars_per_token: float = 4.0,
     tokens_per_word: float = 0.75,
 ) -> int:
-    t_text = _estimate_text_tokens(
+    t_text = _estimate_text_tokens_number(
         text,
         chars_per_token=chars_per_token,
         tokens_per_word=tokens_per_word,
     )
 
-    w, h = get_image_size_from_base64(image_b64)
-    t_image = calculate_image_tokens(w, h, model_name)
+    w, h = _get_image_size_from_base64(image_b64)
+    t_image = _estimate_image_tokens_number(w, h, model_name)
 
     return int(math.ceil(t_text + t_image))
 
@@ -196,9 +200,9 @@ if __name__ == "__main__":
 
     from PIL import Image
 
-    model_name = "o3"  # "o3"  # "mistralai/mistral-small-3.2-24b-instruct:free"  #  "gpt-4o-mini"  #
+    model_name = "mistralai/mistral-small-3.2-24b-instruct:free"  #  "gpt-4o-mini"  #
 
-    image_long_edge = 2048
+    image_long_edge = 248
     # image = Image.open(
     #     "/Users/vigji/code/bubbola/tests/assets/single_pages/0088_001_001.png"
     # )
@@ -249,10 +253,12 @@ if __name__ == "__main__":
     actual_prompt_tokens = resp.usage.prompt_tokens
     print("actual prompt tokens: ", actual_prompt_tokens)
 
-    est_prompt_tokens = estimate_tokens(sample_text, image_base64, model_name)
+    est_prompt_tokens = estimate_total_tokens_number(
+        sample_text, image_base64, model_name
+    )
     print("Heuristic estimate:", est_prompt_tokens)
 
-    image_tokens = calculate_image_tokens(image.width, image.height, model_name)
+    image_tokens = _estimate_image_tokens_number(image.width, image.height, model_name)
     print("image tokens: ", image_tokens)
 
     actual_cost_estimate = get_cost_estimate(
