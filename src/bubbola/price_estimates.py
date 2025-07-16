@@ -196,11 +196,9 @@ if __name__ == "__main__":
 
     from PIL import Image
 
-    model_name = (
-        "o3"  # "mistralai/mistral-small-3.2-24b-instruct:free"  #  "gpt-4o-mini"  #
-    )
+    model_name = "o3"  # "o3"  # "mistralai/mistral-small-3.2-24b-instruct:free"  #  "gpt-4o-mini"  #
 
-    image_long_edge = 256
+    image_long_edge = 2048
     # image = Image.open(
     #     "/Users/vigji/code/bubbola/tests/assets/single_pages/0088_001_001.png"
     # )
@@ -227,7 +225,7 @@ if __name__ == "__main__":
     # Build the user content with image
     data_uri = f"data:image/png;base64,{image_base64}"
 
-    sample_text = "Please describe the contents of the following image."
+    sample_text = "Please describe the contents of the following image:" * 10
     max_tokens = 51
     # Make the API call
     resp = response_function(
