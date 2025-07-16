@@ -7,7 +7,7 @@ from bubbola.model_creator import get_client_response_function
 
 # Updated prices for 2025-07-15. define it as a constant
 MODEL_PROCES_TIMESTAMP = datetime(2025, 7, 15)
-MODEL_PRICES = {
+MODEL_PRICES_PER_M_TOKEN = {
     "meta-llama/llama-4-scout": {"in": 0.15, "out": 0.6},
     "gpt-4o-mini": {"in": 0.15, "out": 0.6},
     "gpt-4o": {"in": 2.5, "out": 10.0},
@@ -26,13 +26,13 @@ def get_per_token_price(model_name):
         )
         return None
 
-    if model_name not in MODEL_PRICES:
+    if model_name not in MODEL_PRICES_PER_M_TOKEN:
         print(
             f"Model {model_name} not found in MODEL_PRICES; price estimate will not be available"
         )
         return None
 
-    return MODEL_PRICES[model_name]
+    return MODEL_PRICES_PER_M_TOKEN[model_name]
 
 
 def get_cost_estimate(model_name, prompt, completion_template):
@@ -42,9 +42,64 @@ def get_cost_estimate(model_name, prompt, completion_template):
     return (prompt * p["in"] + completion_template * p["out"]) / PRICE_PER_X_TOKENS
 
 
-if __name__ == "__main__":
-    print(get_per_token_price("gpt-4o-mini"))
-    print(get_cost_estimate("gpt-4o-mini", 1000000, 1000000))
+def calculate_image_tokens(
+    width: int, height: int, model_name: str, detail: str = "auto"
+) -> int:
+    """
+    Calculate the number of tokens an image will consume for analysis, based on model and detail level.
+
+    Parameters:
+      width (int):  Original image width in pixels.
+      height (int): Original image height in pixels.
+      model_name (str): Name of the vision-capable model ("gpt-4o", "gpt-4o-mini", etc.).
+      detail (str): One of "low", "high", or "auto" (default).
+                    "auto" treats images <= 512×512 as low, else high.
+
+    Returns:
+      int: Total token count for the image input.
+    """
+    # Normalize inputs
+    m = model_name.lower()
+    d = detail.lower()
+
+    # Determine token parameters per model
+    if m in ("gpt-4o", "gpt-4-vision-preview", "gpt-4o-vision-preview", "vision-1"):
+        base_tokens = 85  # low-detail flat cost :contentReference[oaicite:0]{index=0}
+        tile_tokens = 170  # per 512×512 tile :contentReference[oaicite:1]{index=1}
+    elif m in ("gpt-4o-mini",):
+        base_tokens = 2833  # gpt-4o-mini low-detail flat cost :contentReference[oaicite:2]{index=2}
+        tile_tokens = (
+            5667  # gpt-4o-mini per tile cost :contentReference[oaicite:3]{index=3}
+        )
+    else:
+        raise ValueError(f"Unknown model '{model_name}'")
+
+    # Auto-detail logic: small images use low, others use high
+    if d == "auto":
+        if max(width, height) <= 512:
+            d = "low"
+        else:
+            d = "high"
+
+    # Low-detail cost
+    if d == "low":
+        return base_tokens
+
+    # High-detail cost: resize then tile-count
+    # 1) Fit within 2048×2048
+    scale1 = min(1.0, 2048 / max(width, height))
+    w1, h1 = width * scale1, height * scale1
+    # 2) Ensure shortest side is at most 768
+    if min(w1, h1) > 768:
+        scale2 = 768 / min(w1, h1)
+        w1, h1 = w1 * scale2, h1 * scale2
+    # 3) Count 512×512 tiles (round up)
+    tiles_x = math.ceil(w1 / 512)
+    tiles_y = math.ceil(h1 / 512)
+    n_tiles = tiles_x * tiles_y
+
+    # Total tokens = base + per_tile * n :contentReference[oaicite:4]{index=4}
+    return base_tokens + tile_tokens * n_tiles
 
 
 # ------------------------------------------------------------------
@@ -222,9 +277,7 @@ if __name__ == "__main__":
 
     temp_image_path = Path("stonehenge.png")
 
-    model_name = (
-        "gpt-4o"  # "mistralai/mistral-small-3.2-24b-instruct:free"  #  "gpt-4o-mini"  #
-    )
+    model_name = "gpt-4o-mini"  # "mistralai/mistral-small-3.2-24b-instruct:free"  #  "gpt-4o-mini"  #
 
     # Example calibration call (commented; requires valid API creds & real image data)
 
@@ -233,7 +286,7 @@ if __name__ == "__main__":
     )
     # image_base64 = base64.b64encode(response.content).decode("utf-8")
 
-    image_long_edge = 756
+    image_long_edge = 2048
     image = Image.open(
         "/Users/vigji/code/bubbola/tests/assets/single_pages/0088_001_001.png"
     )
@@ -276,5 +329,8 @@ if __name__ == "__main__":
 
     est = estimate_tokens(sample_text, image_base64)
     print("Heuristic estimate:", est)
+
+    image_tokens = calculate_image_tokens(image.width, image.height, model_name)
+    print("image tokens: ", image_tokens)
 
     temp_image_path.unlink()
