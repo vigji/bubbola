@@ -63,8 +63,9 @@ class OpenAIModel(LLMModel):
             name=name,
             client_class=OpenAI,
             base_url=None,
-            # base_url="https://openrouter.ai/api/v1",
             api_key_env_var="OPENAI_API_KEY",
+            # base_url="https://openrouter.ai/api/v1",
+            # api_key_env_var="OPENROUTER",
         )
 
 

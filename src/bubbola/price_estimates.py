@@ -63,60 +63,93 @@ def calculate_image_tokens(
     width: int, height: int, model_name: str, detail: str = "high"
 ) -> int:
     """
-    Calculate the number of tokens an image will consume for analysis, based on model and detail level.
+    Calculate the number of tokens an image will consume for analysis.
+
+    Supports:
+      • Patch-based models: 'gpt-4.1-mini', 'gpt-4.1-nano', 'o4-mini'
+      • Tile-based models: 'gpt-4o', 'gpt-4.1', 'gpt-4o-mini',
+                           'o3', 'o1', 'o1-pro', 'computer-use-preview', etc.
 
     Parameters:
-      width (int):  Original image width in pixels.
-      height (int): Original image height in pixels.
-      model_name (str): Name of the vision-capable model ("gpt-4o", "gpt-4o-mini", etc.).
-      detail (str): One of "low", "high", or "auto" (default).
-                    "auto" treats images <= 512×512 as low, else high.
+      width (int):      Image width in pixels.
+      height (int):     Image height in pixels.
+      model_name (str): Case-insensitive model identifier.
+      detail (str):     'low' or 'high'.  Ignored for patch‑based models.
 
     Returns:
-      int: Total token count for the image input.
+      int: Total token count for this image input.
     """
-    # Normalize inputs
     m = model_name.lower()
     d = detail.lower()
 
-    # Determine token parameters per model
-    if m in ("gpt-4o", "gpt-4-vision-preview", "gpt-4o-vision-preview", "vision-1"):
-        base_tokens = 85  # low-detail flat cost :contentReference[oaicite:0]{index=0}
-        tile_tokens = 170  # per 512×512 tile :contentReference[oaicite:1]{index=1}
+    # --- PATCH-BASED MODELS -------------------------------------------------
+    if m in ("gpt-4.1-mini", "gpt-4.1-nano", "o4-mini"):
+        # 1 patch = 32×32px
+        patches_x = math.ceil(width / 32)
+        patches_y = math.ceil(height / 32)
+        tokens = patches_x * patches_y
+
+        # if over budget, scale down to max 1536 patches
+        if tokens > 1536:
+            # shrink factor to hit exactly 1536 patches area
+            sf = math.sqrt(1536 * (32**2) / (width * height))
+            w1 = width * sf
+            h1 = height * sf
+            patches_x = math.ceil(w1 / 32)
+            patches_y = math.ceil(h1 / 32)
+            tokens = min(patches_x * patches_y, 1536)
+
+        # apply model multiplier
+        if m == "gpt-4.1-mini":
+            tokens *= 1.62
+        elif m == "gpt-4.1-nano":
+            tokens *= 2.46
+        else:  # o4-mini
+            tokens *= 1.72
+
+        return int(math.ceil(tokens))
+
+    # --- TILE-BASED MODELS --------------------------------------------------
+    # must specify detail
+    if d not in ("low", "high"):
+        raise ValueError("detail must be 'low' or 'high' for tile-based models")
+
+    # lookup base & per-tile tokens
+    # MODEL                BASE    PER-TILE
+    # 4o, 4.1, 4.5          85      170
+    # 4o-mini             2833     5667
+    # o1, o1-pro, o3       75      150
+    # computer-use-preview 65      129
+    if m in ("gpt-4o", "gpt-4-vision-preview", "gpt-4.1", "gpt-4.5"):
+        base, per_tile = 85, 170
     elif m in ("gpt-4o-mini",):
-        base_tokens = 2833  # gpt-4o-mini low-detail flat cost :contentReference[oaicite:2]{index=2}
-        tile_tokens = (
-            5667  # gpt-4o-mini per tile cost :contentReference[oaicite:3]{index=3}
-        )
+        base, per_tile = 2833, 5667
+    elif m in ("o1", "o1-pro", "o3"):
+        base, per_tile = 75, 150
+    elif m == "computer-use-preview":
+        base, per_tile = 65, 129
     else:
         raise ValueError(f"Unknown model '{model_name}'")
 
-    # Auto-detail logic: small images use low, others use high
-    # if d == "auto":
-    #     if max(width, height) <= 512:
-    #         d = "low"
-    #     else:
-    #         d = "high"
-
-    # Low-detail cost
     if d == "low":
-        return base_tokens
+        return base
 
-    # High-detail cost: resize then tile-count
+    # detail == 'high'
     # 1) Fit within 2048×2048
-    scale1 = min(1.0, 2048 / max(width, height))
-    w1, h1 = width * scale1, height * scale1
-    # 2) Ensure shortest side is at most 768
+    sf1 = min(1.0, 2048 / max(width, height))
+    w1, h1 = width * sf1, height * sf1
+
+    # 2) Ensure shortest side ≤ 768
     if min(w1, h1) > 768:
-        scale2 = 768 / min(w1, h1)
-        w1, h1 = w1 * scale2, h1 * scale2
-    # 3) Count 512×512 tiles (round up)
+        sf2 = 768 / min(w1, h1)
+        w1, h1 = w1 * sf2, h1 * sf2
+
+    # 3) Count 512×512 tiles, round up
     tiles_x = math.ceil(w1 / 512)
     tiles_y = math.ceil(h1 / 512)
     n_tiles = tiles_x * tiles_y
 
-    # Total tokens = base + per_tile * n :contentReference[oaicite:4]{index=4}
-    return base_tokens + tile_tokens * n_tiles
+    return base + per_tile * n_tiles
 
 
 def _count_words(text: str) -> int:
@@ -158,27 +191,30 @@ def estimate_tokens(
 
 if __name__ == "__main__":
     import base64
+    import random
     from pathlib import Path
 
-    import requests
     from PIL import Image
 
-    temp_image_path = Path("stonehenge.png")
-
-    model_name = "gpt-4o-mini"  # "mistralai/mistral-small-3.2-24b-instruct:free"  #  "gpt-4o-mini"  #
-
-    # Example calibration call (commented; requires valid API creds & real image data)
-
-    response = requests.get(
-        "https://commons.wikimedia.org/wiki/Special:FilePath/Stonehenge.jpg?width=100&format=png"
+    model_name = (
+        "o3"  # "mistralai/mistral-small-3.2-24b-instruct:free"  #  "gpt-4o-mini"  #
     )
-    # image_base64 = base64.b64encode(response.content).decode("utf-8")
 
     image_long_edge = 256
-    image = Image.open(
-        "/Users/vigji/code/bubbola/tests/assets/single_pages/0088_001_001.png"
-    )
-    image.thumbnail((image_long_edge, image_long_edge))
+    # image = Image.open(
+    #     "/Users/vigji/code/bubbola/tests/assets/single_pages/0088_001_001.png"
+    # )
+    temp_image_path = Path("stonehenge.png")
+    # Create new uniform color image
+    base_color = [random.randint(0, 255) for _ in range(3)]
+    image = Image.new("RGB", (image_long_edge, image_long_edge), tuple(base_color))
+    # Add random noise
+    pixels = image.load()
+    for x in range(image.width):
+        for y in range(image.height):
+            noise = random.randint(-10, 10)
+            pixel = [max(0, min(255, c + noise)) for c in base_color]
+            pixels[x, y] = tuple(pixel)
     print("image size: ", image.size)
     image.save(temp_image_path)
     with open(temp_image_path, "rb") as image_file:
@@ -191,8 +227,8 @@ if __name__ == "__main__":
     # Build the user content with image
     data_uri = f"data:image/png;base64,{image_base64}"
 
-    sample_text = ""  # "Please describe the contents of the following image."*4
-    max_tokens = 3
+    sample_text = "Please describe the contents of the following image."
+    max_tokens = 51
     # Make the API call
     resp = response_function(
         model=model_name,
@@ -209,7 +245,7 @@ if __name__ == "__main__":
                 ],
             },
         ],
-        max_tokens=max_tokens,
+        max_completion_tokens=max_tokens,
     )
     print("model name: ", model_name)
     actual_prompt_tokens = resp.usage.prompt_tokens
