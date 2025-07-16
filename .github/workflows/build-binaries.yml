@@ -74,7 +74,7 @@ jobs:
     - name: Test built binary
       run: |
         if [[ "${{ matrix.os }}" == windows* ]]; then
-          dist\${{ matrix.target }}\bubbola.exe sanitize tests/assets/0088_001.pdf
+          dist/${{ matrix.target }}/bubbola.exe sanitize tests/assets/0088_001.pdf
         else
           chmod +x dist/${{ matrix.target }}/bubbola* || true
           dist/${{ matrix.target }}/bubbola* sanitize tests/assets/0088_001.pdf
