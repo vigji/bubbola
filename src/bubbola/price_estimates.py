@@ -1,9 +1,11 @@
 import base64
 import math
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from io import BytesIO
 
 from dotenv import load_dotenv
+from openai import OpenAIResponse
 from PIL import Image
 
 from bubbola.model_creator import get_client_response_function
@@ -21,6 +23,84 @@ MODEL_PRICES_PER_M_TOKEN = {
     "o3": {"in": 2, "out": 8},
     "mistralai/mistral-small-3.2-24b-instruct:free": {"in": 0.0, "out": 0.0},
 }
+
+
+@dataclass
+class TokenCounts:
+    """Dataclass to track token counts and retry statistics."""
+
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    retry_count: int = 0
+    retry_input_tokens: int = 0
+    retry_output_tokens: int = 0
+
+    def add_attempt(self, response: OpenAIResponse, is_retry: bool = False):
+        """Add token counts from an attempt."""
+        self.total_input_tokens += response.usage.prompt_tokens
+        self.total_output_tokens += response.usage.completion_tokens
+
+        if is_retry:
+            self.retry_count += 1
+            self.retry_input_tokens += response.usage.prompt_tokens
+            self.retry_output_tokens += response.usage.completion_tokens
+
+
+@dataclass
+class AggregatedTokenCounts:
+    """Dataclass to aggregate multiple TokenCounts with computed statistics."""
+
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_retry_count: int = 0
+    total_retry_input_tokens: int = 0
+    total_retry_output_tokens: int = 0
+    num_images: int = 0
+
+    def add_token_counts(self, token_counts: TokenCounts):
+        """Add a TokenCounts instance to the aggregation."""
+        self.total_input_tokens += token_counts.total_input_tokens
+        self.total_output_tokens += token_counts.total_output_tokens
+        self.total_retry_count += token_counts.retry_count
+        self.total_retry_input_tokens += token_counts.retry_input_tokens
+        self.total_retry_output_tokens += token_counts.retry_output_tokens
+        self.num_images += 1
+
+    @property
+    def retry_probability(self) -> float:
+        """Compute probability of retry across all images."""
+        if self.num_images == 0:
+            return 0.0
+        return self.total_retry_count / self.num_images
+
+    @property
+    def retry_input_percentage(self) -> float:
+        """Compute percentage of input tokens that were from retries."""
+        if self.total_input_tokens == 0:
+            return 0.0
+        return (self.total_retry_input_tokens / self.total_input_tokens) * 100
+
+    @property
+    def retry_output_percentage(self) -> float:
+        """Compute percentage of output tokens that were from retries."""
+        if self.total_output_tokens == 0:
+            return 0.0
+        return (self.total_retry_output_tokens / self.total_output_tokens) * 100
+
+    def print_summary(self):
+        """Print a summary of the aggregated statistics."""
+        print("\nAGGREGATED TOKEN STATISTICS:")
+        print(f"Number of images processed: {self.num_images}")
+        print(f"Total input tokens: {self.total_input_tokens}")
+        print(f"Total output tokens: {self.total_output_tokens}")
+        print(f"Total retry count: {self.total_retry_count}")
+        print(f"Retry probability: {self.retry_probability:.2%}")
+        print(
+            f"Retry input tokens: {self.total_retry_input_tokens} ({self.retry_input_percentage:.1f}%)"
+        )
+        print(
+            f"Retry output tokens: {self.total_retry_output_tokens} ({self.retry_output_percentage:.1f}%)"
+        )
 
 
 def get_per_token_price(model_name):

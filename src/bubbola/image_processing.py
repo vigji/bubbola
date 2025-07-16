@@ -2,48 +2,20 @@ import base64
 import json
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
 
-from openai import OpenAIResponse
 from tqdm import tqdm
 
 from bubbola.data_models import DeliveryNote
-from bubbola.price_estimates import estimate_total_tokens_number, get_cost_estimate
+from bubbola.price_estimates import (
+    AggregatedTokenCounts,
+    TokenCounts,
+    estimate_total_tokens_number,
+    get_cost_estimate,
+)
 
 # Global variables for parallel processing
 token_lock = threading.Lock()
 shutdown_requested = False
-
-
-@dataclass
-class TokenCounts:
-    """Dataclass to track token counts and retry statistics."""
-
-    total_input_tokens: int = 0
-    total_output_tokens: int = 0
-    retry_count: int = 0
-    retry_input_tokens: int = 0
-    retry_output_tokens: int = 0
-
-    def add_attempt(self, response: OpenAIResponse, is_retry: bool = False):
-        """Add token counts from an attempt."""
-        self.total_input_tokens += response.usage.prompt_tokens
-        self.total_output_tokens += response.usage.completion_tokens
-
-        if is_retry:
-            self.retry_count += 1
-            self.retry_input_tokens += response.usage.prompt_tokens
-            self.retry_output_tokens += response.usage.completion_tokens
-
-    def to_tuple(self):
-        """Return token counts as a tuple for backward compatibility."""
-        return (
-            self.total_input_tokens,
-            self.total_output_tokens,
-            self.retry_count,
-            self.retry_input_tokens,
-            self.retry_output_tokens,
-        )
 
 
 def _validate_response_content(response_content: str, name: str, attempt: int) -> bool:
@@ -179,7 +151,7 @@ def process_single_image(
                 # Valid response, save files and return
                 _save_response_files(results_dir, name, response_content, base64_image)
 
-                return token_counts.to_tuple()
+                return token_counts
             else:
                 # Invalid response, prepare for retry or final save
                 if attempt < max_retries:
@@ -194,7 +166,7 @@ def process_single_image(
                     _save_response_files(
                         results_dir, name, response_content, base64_image
                     )
-                    return token_counts.to_tuple()
+                    return token_counts
 
         except Exception as e:
             print(f"API call failed for {name} on attempt {attempt + 1}: {e}")
@@ -222,7 +194,7 @@ def process_images_parallel(
 ):
     """Process images in parallel and return total token counts and retry statistics."""
     global shutdown_requested
-    total_token_counts = TokenCounts()
+    aggregated_token_counts = AggregatedTokenCounts()
     failed_images = []
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -261,21 +233,9 @@ def process_images_parallel(
 
                     name = future_to_name[future]
                     try:
-                        (
-                            input_tokens,
-                            output_tokens,
-                            retry_count,
-                            retry_input_tokens,
-                            retry_output_tokens,
-                        ) = future.result(timeout=timeout)
+                        token_counts = future.result(timeout=timeout)
                         with token_lock:
-                            total_token_counts.total_input_tokens += input_tokens
-                            total_token_counts.total_output_tokens += output_tokens
-                            total_token_counts.retry_count += retry_count
-                            total_token_counts.retry_input_tokens += retry_input_tokens
-                            total_token_counts.retry_output_tokens += (
-                                retry_output_tokens
-                            )
+                            aggregated_token_counts.add_token_counts(token_counts)
                         completed_count += 1
                         pbar.update(1)
                     except TimeoutError:
@@ -305,20 +265,21 @@ def process_images_parallel(
             f"Processing interrupted. Completed {completed_count}/{total_tasks} images."
         )
 
+        # Print aggregated statistics
+    aggregated_token_counts.print_summary()
+
     if dry_run:
         total_cost = get_cost_estimate(
             model_name,
-            total_token_counts.total_input_tokens,
-            total_token_counts.total_output_tokens,
+            aggregated_token_counts.total_input_tokens,
+            aggregated_token_counts.total_output_tokens,
         )
         print("\nDRY RUN SUMMARY:")
-        print(f"Total estimated input tokens: {total_token_counts.total_input_tokens}")
-        print(
-            f"Total estimated output tokens: {total_token_counts.total_output_tokens}"
-        )
         if total_cost is not None:
-            print(f"Total estimated cost: ${total_cost:.6f}")
+            print(
+                f"Total estimated cost: ${total_cost:.6f} ({total_cost / len(to_process):.6f} per page)"
+            )
         else:
             print(f"Total cost estimate: Not available for model {model_name}")
 
-    return total_token_counts.to_tuple()
+    return aggregated_token_counts
