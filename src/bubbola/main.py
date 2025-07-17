@@ -8,7 +8,7 @@ from pathlib import Path
 from bubbola.data_models import DeliveryNote
 from bubbola.image_data_loader import sanitize_to_images
 from bubbola.image_processing import ParallelImageProcessor
-from bubbola.load_results import create_results_csv
+from bubbola.results_converter import create_results_csv
 
 # Global lock for thread-safe token counting
 token_lock = threading.Lock()

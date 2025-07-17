@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from bubbola.data_models import DeliveryNote
 from bubbola.image_data_loader import sanitize_to_images
 from bubbola.image_processing import ParallelImageProcessor
-from bubbola.load_results import create_results_csv
+from bubbola.results_converter import create_results_csv
 
 
 class ProcessingFlow:
@@ -168,11 +168,15 @@ class BatchProcessor:
             print(f"Error: Input path does not exist: {input_path}")
             return 1
 
+        if output_dir is None:
+            output_dir = input_path.parent / "results"
+
         # Set up output directory only if not in dry run mode
-        if not dry_run and output_dir is None:
+        if not dry_run:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_dir = input_path.parent / "results" / f"{flow_name}_{timestamp}"
+            output_dir = output_dir / f"{flow_name}_{timestamp}"
             output_dir.mkdir(parents=True, exist_ok=True)
+
         elif dry_run:
             # Use a temporary directory for dry run
             import tempfile
@@ -298,7 +302,7 @@ def main() -> int:
     """Main entry point - runs the currently available flow."""
     # Default configuration
     input_path = Path("input")  # Default input directory
-    flow_name = "delivery_notes"  # Default flow
+    flow_name = "lg_concrete_v1_test"  # Default flow
     dry_run = True  # Default to dry run for safety
 
     # Check if input directory exists
