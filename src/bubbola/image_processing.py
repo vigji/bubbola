@@ -116,7 +116,7 @@ class ParallelImageProcessor:
     """Handles parallel processing of multiple images with progress tracking and error handling."""
 
     def __init__(self, max_workers: int = 10):
-        self.max_workers = max_workers
+        self.max_workers = 10
         self.shutdown_requested = False
         self.token_lock = threading.Lock()
 
