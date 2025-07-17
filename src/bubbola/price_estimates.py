@@ -5,10 +5,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from typing import Any
 
-from dotenv import load_dotenv
 from PIL import Image
-
-load_dotenv("/Users/vigji/code/bubbola/config.env")
 
 # Updated prices for 2025-07-15. define it as a constant
 MODEL_PROCES_TIMESTAMP = datetime(2025, 7, 15)

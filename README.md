@@ -269,4 +269,10 @@ make clean            # Clean build artifacts
 
 ## Configuration
 
-The application stores configuration in `~/.bubbola/config.json`. The directory is created automatically on first run.
+Bubbola uses a simple configuration system. Create your config file:
+
+```bash
+python scripts/setup_config.py
+```
+
+This creates `~/.bubbola/config.env` with your API keys. See [CONFIGURATION.md](CONFIGURATION.md) for details.

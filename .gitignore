@@ -214,4 +214,5 @@ __marimo__/
 config.env
 
 
+tests/results/
 tests/assets/results/

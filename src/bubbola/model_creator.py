@@ -1,19 +1,15 @@
-import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
-from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel
 
+from bubbola.config import get_env
 from bubbola.price_estimates import (
     TokenCounts,
     estimate_tokens_from_messages_with_schema,
 )
-
-# Load environment variables
-load_dotenv("/Users/vigji/code/bubbola/config.env")
 
 
 class MockModelClient:
@@ -202,7 +198,7 @@ class LLMModel:
 
     @property
     def api_key(self):
-        return os.getenv(self.api_key_env_var)
+        return get_env(self.api_key_env_var)
 
     @property
     def client(self):
