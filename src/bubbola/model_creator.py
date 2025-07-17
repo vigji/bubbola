@@ -7,7 +7,10 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel
 
-from bubbola.price_estimates import TokenCounts
+from bubbola.price_estimates import (
+    TokenCounts,
+    estimate_tokens_from_messages_with_schema,
+)
 
 # Load environment variables
 load_dotenv("/Users/vigji/code/bubbola/config.env")
@@ -232,6 +235,7 @@ class LLMModel:
         messages: list[dict],
         pydantic_model: BaseModel,
         max_n_retries: int = 5,
+        dry_run: bool = False,
         **kwargs,
     ) -> tuple[Any, TokenCounts]:
         """Send messages to model and return parsed response with token counts.
@@ -240,11 +244,27 @@ class LLMModel:
             messages: List of message dictionaries
             pydantic_model: Pydantic model for response validation
             max_n_retries: Maximum number of retry attempts
+            dry_run: If True, estimate tokens without making API calls
             **kwargs: Additional arguments to pass to the model
 
         Returns:
             Tuple of (parsed_response, token_counts)
         """
+        if dry_run:
+            # Estimate tokens using the price_estimates module
+            schema = pydantic_model.model_json_schema()
+            estimated_input_tokens, estimated_output_tokens = (
+                estimate_tokens_from_messages_with_schema(messages, self.name, schema)
+            )
+
+            token_counts = TokenCounts(
+                total_input_tokens=estimated_input_tokens,
+                total_output_tokens=estimated_output_tokens,
+                retry_count=0,
+            )
+            return None, token_counts
+
+        # Normal execution
         token_counts = TokenCounts()
 
         for attempt in range(max_n_retries + 1):
@@ -317,6 +337,7 @@ class LLMModel:
         images: list[str] | None = None,
         pydantic_model: BaseModel | None = None,
         max_n_retries: int = 5,
+        dry_run: bool = False,
         **kwargs,
     ) -> Any | tuple[Any, TokenCounts]:
         """Convenience method to query with instructions and optional images.
@@ -326,6 +347,7 @@ class LLMModel:
             images: Optional list of base64-encoded images
             pydantic_model: Optional Pydantic model for response validation
             max_n_retries: Maximum number of retry attempts
+            dry_run: If True, estimate tokens without making API calls
             **kwargs: Additional arguments to pass to the model
 
         Returns:
@@ -336,7 +358,7 @@ class LLMModel:
 
         if pydantic_model:
             return self.get_parsed_response(
-                messages, pydantic_model, max_n_retries, **kwargs
+                messages, pydantic_model, max_n_retries, dry_run, **kwargs
             )
         else:
             return self.get_simple_response(messages, **kwargs)

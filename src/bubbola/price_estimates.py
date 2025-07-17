@@ -42,11 +42,11 @@ def _counts_from_response(response):
 class TokenCounts:
     """Dataclass to track token counts and retry statistics."""
 
-    total_input_tokens: int = 0
-    total_output_tokens: int = 0
+    total_input_tokens: int | None = None
+    total_output_tokens: int | None = None
     retry_count: int = -1
-    retry_input_tokens: int = 0
-    retry_output_tokens: int = 0
+    retry_input_tokens: int | None = None
+    retry_output_tokens: int | None = None
 
     def add_attempt(self, response):
         """Add token counts from an attempt."""
@@ -289,6 +289,86 @@ def estimate_total_tokens_number(
     t_image = _estimate_image_tokens_number(w, h, model_name)
 
     return int(math.ceil(t_text + t_image))
+
+
+def estimate_tokens_from_messages(
+    messages: list[dict], model_name: str
+) -> tuple[int | None, int | None]:
+    """
+    Estimate input and output tokens from a list of messages.
+
+    Args:
+        messages: List of message dictionaries
+        model_name: Name of the model for token calculation
+
+    Returns:
+        Tuple of (estimated_input_tokens, estimated_output_tokens) or (None, None) if not supported
+    """
+    # Extract text content
+    text_parts = []
+    images = []
+
+    for message in messages:
+        content = message.get("content", "")
+
+        if isinstance(content, str):
+            text_parts.append(content)
+        elif isinstance(content, list):
+            for item in content:
+                if isinstance(item, dict):
+                    if item.get("type") == "text":
+                        text_parts.append(item.get("text", ""))
+                    elif item.get("type") == "image_url":
+                        url = item.get("image_url", {}).get("url", "")
+                        if url.startswith("data:image/"):
+                            if "," in url:
+                                images.append(url.split(",", 1)[1])
+                    elif item.get("type") == "input_image":
+                        images.append(item.get("image_url", ""))
+
+    text_content = " ".join(text_parts)
+
+    # Estimate input tokens
+    try:
+        if images:
+            estimated_input_tokens = estimate_total_tokens_number(
+                text_content, images[0], model_name
+            )
+        else:
+            estimated_input_tokens = int(_estimate_text_tokens_number(text_content))
+    except (ValueError, Exception):
+        # If estimation fails, return None
+        estimated_input_tokens = None
+
+    # For output tokens, we can't estimate without schema, so return None
+    estimated_output_tokens = None
+
+    return estimated_input_tokens, estimated_output_tokens
+
+
+def estimate_tokens_from_messages_with_schema(
+    messages: list[dict], model_name: str, response_schema: dict[str, Any]
+) -> tuple[int | None, int | None]:
+    """
+    Estimate input and output tokens from messages and response schema.
+
+    Args:
+        messages: List of message dictionaries
+        model_name: Name of the model for token calculation
+        response_schema: JSON schema for the response format
+
+    Returns:
+        Tuple of (estimated_input_tokens, estimated_output_tokens) or (None, None) if not supported
+    """
+    input_tokens, _ = estimate_tokens_from_messages(messages, model_name)
+
+    # Estimate output tokens from schema
+    try:
+        output_tokens = estimate_max_output_tokens_from_schema(response_schema)
+    except Exception:
+        output_tokens = None
+
+    return input_tokens, output_tokens
 
 
 def estimate_max_output_tokens_from_schema(response_format: dict[str, Any]) -> int:

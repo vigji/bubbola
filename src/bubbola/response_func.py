@@ -59,6 +59,25 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"✗ Unified message creation failed for {model_name}: {e}")
 
+            # Test dry_run functionality
+            try:
+                # Test with Pydantic model and dry_run=True
+                result, token_counts = model_object.query_with_instructions(
+                    instructions="Describe the image briefly.",
+                    images=[image_base64],
+                    pydantic_model=ImageDescription,
+                    dry_run=True,
+                )
+                print(f"✓ Dry run functionality works for {model_name}")
+                print(f"  Result type: {type(result)}")
+                print(f"  Result: {result}")
+                print(f"  Token counts: {token_counts}")
+                print(f"  Estimated input tokens: {token_counts.total_input_tokens}")
+                print(f"  Estimated output tokens: {token_counts.total_output_tokens}")
+
+            except Exception as e:
+                print(f"✗ Dry run functionality failed for {model_name}: {e}")
+
             # Test unified query method (would require API keys to actually work)
             try:
                 # Test with Pydantic model
