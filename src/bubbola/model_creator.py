@@ -167,7 +167,11 @@ def get_model_client(required_model: str, force_openrouter=False):
 def get_client_response_function(required_model: str, force_openrouter=False):
     client = get_model_client(required_model, force_openrouter)
     print(client)
-    return client.chat.completions.create
+
+    def client_response_function(model: str, messages: list[dict], **kwargs):
+        return client.chat.completions.create(model=model, messages=messages, **kwargs)
+
+    return client_response_function
 
     # # If a pydantic model is provided, use the new .parse interface for structured outputs
     # if pydantic_model is not None:
@@ -189,14 +193,35 @@ def get_client_response_function_with_schema(
 
     if required_model in ["gpt-4o", "gpt-4o-mini", "o3", "o4-mini"]:
 
-        def schemed_client_response(
-            model: str,
-            messages: list[dict],
-            pydantic_model: BaseModel,
+        def schemed_client_response_function(
+            messages: list[dict], pydantic_model: BaseModel, **kwargs
         ):
             return client.responses.parse(
-                model=model, messages=messages, response_format=pydantic_model
+                model=required_model,
+                input=messages,
+                text_format=pydantic_model,
+                **kwargs,
             )
+
+    else:
+
+        def schemed_client_response_function(
+            messages: list[dict], pydantic_model: BaseModel, **kwargs
+        ):
+            return client.chat.completions.create(
+                model=required_model,
+                messages=messages,
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": pydantic_model.__name__,
+                        "schema": pydantic_model.model_json_schema(),
+                    },
+                },
+                **kwargs,
+            )
+
+    return schemed_client_response_function
 
 
 if __name__ == "__main__":
