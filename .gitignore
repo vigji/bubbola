@@ -212,3 +212,6 @@ __marimo__/
 .DS_Store
 
 config.env
+
+
+tests/assets/results/
