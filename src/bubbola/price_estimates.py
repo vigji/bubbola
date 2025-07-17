@@ -8,8 +8,6 @@ from typing import Any
 from dotenv import load_dotenv
 from PIL import Image
 
-from bubbola.model_creator import get_client_response_function
-
 load_dotenv("/Users/vigji/code/bubbola/config.env")
 
 # Updated prices for 2025-07-15. define it as a constant
@@ -25,25 +23,44 @@ MODEL_PRICES_PER_M_TOKEN = {
 }
 
 
+def _counts_from_response(response):
+    try:
+        input_tokens, output_tokens = (
+            response.usage.input_tokens,
+            response.usage.output_tokens,
+        )
+    except AttributeError:
+        input_tokens, output_tokens = (
+            response.usage.prompt_tokens,
+            response.usage.completion_tokens,
+        )
+
+    return input_tokens, output_tokens
+
+
 @dataclass
 class TokenCounts:
     """Dataclass to track token counts and retry statistics."""
 
     total_input_tokens: int = 0
     total_output_tokens: int = 0
-    retry_count: int = 0
+    retry_count: int = -1
     retry_input_tokens: int = 0
     retry_output_tokens: int = 0
 
     def add_attempt(self, response, is_retry: bool = False):
         """Add token counts from an attempt."""
-        self.total_input_tokens += response.usage.prompt_tokens
-        self.total_output_tokens += response.usage.completion_tokens
 
-        if is_retry:
-            self.retry_count += 1
-            self.retry_input_tokens += response.usage.prompt_tokens
-            self.retry_output_tokens += response.usage.completion_tokens
+        self.retry_count += 1
+
+        if self.retry_count >= 1:
+            # retry counts are the ones from previous attempts:
+            self.retry_input_tokens = self.total_input_tokens
+            self.retry_output_tokens = self.total_output_tokens
+
+        input_tokens, output_tokens = _counts_from_response(response)
+        self.total_input_tokens += input_tokens
+        self.total_output_tokens += output_tokens
 
 
 @dataclass
@@ -365,6 +382,7 @@ if __name__ == "__main__":
     import random
     from pathlib import Path
 
+    from model_creator import get_client_response_function
     from PIL import Image
 
     from bubbola.data_models import DeliveryNote

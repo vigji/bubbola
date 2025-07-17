@@ -1,10 +1,36 @@
-# %%
+import json
 import os
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from openai.types.responses import ParsedResponse
+from price_estimates import TokenCounts
 from pydantic import BaseModel
+
+
+def _validate_response_content(
+    response_content: str, pydantic_model: BaseModel
+) -> bool:
+    """Validate response content and return True if valid, False otherwise."""
+    if not response_content or not response_content.strip():
+        return False
+
+    try:
+        # Try to parse the JSON and validate with Pydantic model
+        parsed_json = json.loads(response_content)
+
+        # Check if response is actually the schema instead of data
+        if isinstance(parsed_json, dict) and (
+            "$defs" in parsed_json or "properties" in parsed_json
+        ):
+            return False
+        else:
+            pydantic_model.model_validate(parsed_json)
+            return True
+    except (json.JSONDecodeError, ValueError):
+        return False
+
 
 # Load environment variables
 load_dotenv("/Users/vigji/code/bubbola/config.env")
@@ -173,28 +199,17 @@ def get_client_response_function(required_model: str, force_openrouter=False):
 
     return client_response_function
 
-    # # If a pydantic model is provided, use the new .parse interface for structured outputs
-    # if pydantic_model is not None:
-    #     # Use the beta.chat.completions.parse method for strict schema enforcement
-    #     return client.beta.chat.completions.parse
-    # else:
-    #     # Fallback to regular chat completions for non-structured outputs
-    #     return client.chat.completions.create
-
-
-# %%
-# %%
-
 
 def get_client_response_function_with_schema(
     required_model: str, pydantic_model: BaseModel, force_openrouter=False
 ):
+    MAX_RETRIES = 5
     client = get_model_client(required_model, force_openrouter)
 
     if required_model in ["gpt-4o", "gpt-4o-mini", "o3", "o4-mini"]:
 
         def schemed_client_response_function(
-            messages: list[dict], pydantic_model: BaseModel, **kwargs
+            messages: list[dict], max_retries=MAX_RETRIES, **kwargs
         ):
             return client.responses.parse(
                 model=required_model,
@@ -205,9 +220,7 @@ def get_client_response_function_with_schema(
 
     else:
 
-        def schemed_client_response_function(
-            messages: list[dict], pydantic_model: BaseModel, **kwargs
-        ):
+        def schemed_client_response_function(messages: list[dict], **kwargs):
             return client.chat.completions.create(
                 model=required_model,
                 messages=messages,
@@ -222,6 +235,41 @@ def get_client_response_function_with_schema(
             )
 
     return schemed_client_response_function
+
+
+def get_parsed_response_function(
+    required_model: str,
+    pydantic_model: BaseModel,
+    force_openrouter=False,
+    max_n_retries=5,
+):
+    response_function = get_client_response_function_with_schema(
+        required_model, pydantic_model, force_openrouter
+    )
+
+    def parsed_response_function(messages: list[dict], **kwargs):
+        token_counts = TokenCounts()
+
+        for attempt in range(max_n_retries + 1):
+            try:
+                response = response_function(messages, **kwargs)
+                token_counts.add_response(response)
+
+                if isinstance(response, ParsedResponse):
+                    return response
+                else:
+                    return pydantic_model.model_validate_json(
+                        response.choices[0].message.content
+                    )
+
+            except Exception as e:
+                if attempt == max_n_retries:
+                    raise e
+                else:
+                    token_counts.add_response(response, is_retry=True)
+                    continue
+
+    return parsed_response_function
 
 
 if __name__ == "__main__":

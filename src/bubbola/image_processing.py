@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
 from bubbola.data_models import DeliveryNote
+from bubbola.model_creator import _validate_response_content
 from bubbola.price_estimates import (
     AggregatedTokenCounts,
     TokenCounts,
@@ -17,35 +18,6 @@ from bubbola.price_estimates import (
 # Global variables for parallel processing
 token_lock = threading.Lock()
 shutdown_requested = False
-
-
-def _validate_response_content(
-    response_content: str, image_name: str, attempt: int
-) -> bool:
-    """Validate response content and return True if valid, False otherwise."""
-    if not response_content or not response_content.strip():
-        return False
-
-    try:
-        # Try to parse the JSON and validate with Pydantic model
-        parsed_json = json.loads(response_content)
-
-        # Check if response is actually the schema instead of data
-        if isinstance(parsed_json, dict) and (
-            "$defs" in parsed_json or "properties" in parsed_json
-        ):
-            print(
-                f"Response contains schema instead of data for {image_name}, attempt {attempt + 1}. Retrying..."
-            )
-            return False
-        else:
-            DeliveryNote.model_validate(parsed_json)
-            return True
-    except (json.JSONDecodeError, ValueError) as e:
-        print(
-            f"Invalid JSON or Pydantic validation failed for {image_name}, attempt {attempt + 1}: {e}"
-        )
-        return False
 
 
 def _save_response_files(results_dir, image_name, response_content, base64_image):
