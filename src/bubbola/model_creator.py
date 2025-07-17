@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from openai.types.chat import ChatCompletion
 from openai.types.responses import ParsedResponse
 from price_estimates import TokenCounts
 from pydantic import BaseModel
@@ -257,12 +258,19 @@ def get_parsed_response_function(
 
                 if isinstance(response, ParsedResponse):
                     return response
-                else:
-                    return pydantic_model.model_validate_json(
-                        response.choices[0].message.content
-                    )
+
+                elif isinstance(response, ChatCompletion):
+                    response_content = response.choices[0].message.content
+
+                    if _validate_response_content(response_content, pydantic_model):
+                        return pydantic_model.model_validate_json(response_content)
+                    else:
+                        raise ValueError(
+                            f"Invalid response content for {pydantic_model.__name__}"
+                        )
 
             except Exception as e:
+                print(f"API call failed on attempt {attempt + 1}: {e}")
                 if attempt == max_n_retries:
                     raise e
                 else:
