@@ -1,0 +1,4 @@
+file_id,nome_rag_1,b501a_num_doc,ddt_number,delivery_date,fisso_pompa_nastro,m3_pompa_nastro,summary,n_items
+0088_001_001,LG Concrete S.r.L.,,02261,11/11/2024,0,10,"Matched supplier LG Concrete S.r.L. DDT number 02261 dated 11/11/2024. One item delivered: 10 m3 of plastic concrete, matched to price list at €86/m3 for a total of €860. No separate additions or fixed pump cost recorded.",1
+0089_001_001,LG Concrete S.r.L.,,02262,11/11/2024,1,10,Identified LG Concrete S.r.L. as supplier by name/VAT. Extracted DDT 02262 dated 11/11/2024. One item “Cls plastico a comp. richiesta” for 10 m3 with no matching code in price list → marked not_in_valid_items. Fixed pump used once for 10 m3.,1
+0089_001_002,LG Concrete S.r.L.,,02263,12/11/2024,1,8,"Matched supplier as LG Concrete S.r.L. from header. DDT number 02263 dated 12/11/2024. One delivery item: 8 m3 generic plastic concrete (no matching price entry). Pump service: fixed 1, additional 8 m3.",1

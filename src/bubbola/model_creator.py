@@ -405,7 +405,7 @@ class MockModel(LLMModel):
 MODEL_NAME_TO_CLASS_MAP = {
     # OpenRouter models
     "meta-llama/llama-4-scout": OpenRouterModel,
-    # "meta-llama/llama-4-maverick": OpenRouterModel,
+    "meta-llama/llama-4-maverick": OpenRouterModel,
     # "google/gemma-3-27b-it:free": OpenRouterModel,
     # "anthropic/claude-3-haiku:beta": OpenRouterModel,
     "mistralai/mistral-small-3.2-24b-instruct:free": OpenRouterModel,

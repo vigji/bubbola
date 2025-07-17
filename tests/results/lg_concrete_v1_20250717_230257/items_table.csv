@@ -1,0 +1,4 @@
+file_id,ddt_nome_rag_1,ddt_delivery_date,item_name,item_code,item_quantity,item_measurement_unit,item_unit_price,item_total_price,not_in_valid_items
+0088_001_001,LG Concrete S.r.L.,11/11/2024,Cls plastico a comp. richiesta,,10.0,m3,86.0,860.0,False
+0089_001_001,LG Concrete S.r.L.,11/11/2024,Cls plastico a comp. richiesta,,10.0,m3,,,True
+0089_001_002,LG Concrete S.r.L.,12/11/2024,Cls plastico a comp. richiesta,,8.0,m3,,,True

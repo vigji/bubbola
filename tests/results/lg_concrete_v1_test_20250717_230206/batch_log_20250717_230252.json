@@ -1,0 +1,16 @@
+{
+  "flow_name": "lg_concrete_v1_test",
+  "input_path": "tests/assets",
+  "output_dir": "tests/results/lg_concrete_v1_test_20250717_230206",
+  "external_files": {},
+  "total_input_tokens": 11190,
+  "total_output_tokens": 1139,
+  "total_retry_count": 0,
+  "total_retry_input_tokens": 0,
+  "total_retry_output_tokens": 0,
+  "processing_time": 45.466667,
+  "max_workers": 1,
+  "max_retries": 5,
+  "dry_run": false,
+  "actual_cost": 0.0
+}

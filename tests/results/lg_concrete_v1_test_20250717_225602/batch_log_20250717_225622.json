@@ -1,0 +1,15 @@
+{
+  "flow_name": "lg_concrete_v1_test",
+  "input_path": "/Users/vigji/code/bubbola/tests/assets",
+  "output_dir": "/Users/vigji/code/bubbola/tests/results/lg_concrete_v1_test_20250717_225602",
+  "external_files": {},
+  "total_input_tokens": 11190,
+  "total_output_tokens": 1116,
+  "total_retry_count": 0,
+  "total_retry_input_tokens": 0,
+  "total_retry_output_tokens": 0,
+  "processing_time": 19.232498,
+  "max_workers": 10,
+  "max_retries": 5,
+  "dry_run": false
+}
