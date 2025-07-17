@@ -76,11 +76,17 @@ class AggregatedTokenCounts:
 
     def add_token_counts(self, token_counts: TokenCounts):
         """Add a TokenCounts instance to the aggregation."""
-        self.total_input_tokens += token_counts.total_input_tokens
-        self.total_output_tokens += token_counts.total_output_tokens
+        # Handle None values by treating them as 0
+        input_tokens = token_counts.total_input_tokens or 0
+        output_tokens = token_counts.total_output_tokens or 0
+        retry_input_tokens = token_counts.retry_input_tokens or 0
+        retry_output_tokens = token_counts.retry_output_tokens or 0
+
+        self.total_input_tokens += input_tokens
+        self.total_output_tokens += output_tokens
         self.total_retry_count += token_counts.retry_count
-        self.total_retry_input_tokens += token_counts.retry_input_tokens
-        self.total_retry_output_tokens += token_counts.retry_output_tokens
+        self.total_retry_input_tokens += retry_input_tokens
+        self.total_retry_output_tokens += retry_output_tokens
         self.num_images += 1
 
     @property

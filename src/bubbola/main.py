@@ -7,9 +7,8 @@ from pathlib import Path
 
 from bubbola.data_models import DeliveryNote
 from bubbola.image_data_loader import sanitize_to_images
-from bubbola.image_processing import process_images_parallel
+from bubbola.image_processing import ParallelImageProcessor
 from bubbola.load_results import create_results_csv
-from bubbola.model_creator import get_client_response_function
 
 # Global lock for thread-safe token counting
 token_lock = threading.Lock()
@@ -164,11 +163,6 @@ if __name__ == "__main__":
     )
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    # Process each image
-    response_function, response_scheme = get_client_response_function(
-        model_name, DeliveryNote
-    )
-
     # Parse command line arguments for parallel processing
     parser = argparse.ArgumentParser(
         description="Process delivery notes with parallel requests"
@@ -193,25 +187,25 @@ if __name__ == "__main__":
     )
     args, unknown = parser.parse_known_args()
 
-    # Process images in parallel
+    # Process images in parallel using the new interface
     items_to_process = dict(list(to_process.items())[:N_TO_PROCESS])
-    (
-        total_input_tokens,
-        total_output_tokens,
-        total_retry_count,
-        total_retry_input_tokens,
-        total_retry_output_tokens,
-    ) = process_images_parallel(
-        items_to_process,
-        results_dir,
-        system_prompt,
-        response_function,
-        response_scheme,
-        model_name,
-        max_workers=args.max_workers,
-        timeout=args.timeout,
+    processor = ParallelImageProcessor(max_workers=args.max_workers)
+    aggregated_token_counts = processor.process_batch(
+        to_process=items_to_process,
+        system_prompt=system_prompt,
+        model_name=model_name,
+        pydantic_model=DeliveryNote,
+        results_dir=results_dir,
         max_retries=args.max_retries,
+        timeout=args.timeout,
     )
+
+    # Extract token counts for backward compatibility
+    total_input_tokens = aggregated_token_counts.total_input_tokens
+    total_output_tokens = aggregated_token_counts.total_output_tokens
+    total_retry_count = aggregated_token_counts.total_retry_count
+    total_retry_input_tokens = aggregated_token_counts.total_retry_input_tokens
+    total_retry_output_tokens = aggregated_token_counts.total_retry_output_tokens
 
     end_time = datetime.now()
     print(f"Time taken: {(end_time - start_time).total_seconds()} seconds")

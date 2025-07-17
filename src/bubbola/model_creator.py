@@ -265,7 +265,7 @@ class LLMModel:
             return None, token_counts
 
         # Normal execution
-        token_counts = TokenCounts()
+        token_counts = TokenCounts(total_input_tokens=0, total_output_tokens=0)
 
         for attempt in range(max_n_retries + 1):
             try:
