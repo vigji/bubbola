@@ -2,12 +2,17 @@
 
 from pathlib import Path
 
+from bubbola.config import load_config, validate_config
+
 
 class BubbolaApp:
     """Main application class for Bubbola."""
 
     def __init__(self) -> None:
         """Initialize the application."""
+        # Load configuration (this will create the template if it doesn't exist)
+        load_config()
+        validate_config()
         self.config_path = Path.home() / ".bubbola" / "config.json"
         self.config_path.parent.mkdir(exist_ok=True)
 

@@ -145,7 +145,7 @@ Return only the JSON entries, not the full Pydantic schema! Copy a summary of yo
     return {
         "data_model": "DeliveryNote",
         "system_prompt": system_prompt,
-        "model_name": "o4-mini",
+        "model_name": "gpt-4o-mini",
         "description": "Process delivery notes to extract supplier, items, and pricing information",
         "external_file_options": {
             "suppliers_csv": "Path to suppliers CSV file (optional)",

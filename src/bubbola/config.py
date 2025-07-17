@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 # Embedded template configuration (can be overridden by user config)
 EMBEDDED_CONFIG = """# Bubbola Configuration
-# This file contains your API keys and secrets for the Bubbola application.
+# This file contains your API keys for the Bubbola application.
 #
 # INSTRUCTIONS:
 # 1. Replace the placeholder values below with your actual API keys
@@ -46,18 +46,10 @@ def load_config():
     else:
         # Create config directory and template file
         config_path.parent.mkdir(exist_ok=True)
-
-        # Check if we're running as a binary
-        if getattr(sys, "frozen", False):
-            # Running as binary - create template for user to edit
-            with open(config_path, "w", encoding="utf-8") as f:
-                f.write(EMBEDDED_CONFIG)
-            print(f"Created configuration template at: {config_path}")
-            print("Please edit this file with your actual API keys")
-        else:
-            # Running in development - just warn
-            print(f"Configuration file not found: {config_path}")
-            print("Please create ~/.bubbola/config.env with your API keys")
+        with open(config_path, "w", encoding="utf-8") as f:
+            f.write(EMBEDDED_CONFIG)
+        print(f"Created configuration template at: {config_path}")
+        print("Please edit this file with your actual API keys")
 
 
 def get_env(key: str, default: str | None = None) -> str | None:
@@ -96,3 +88,32 @@ def get_required(key: str) -> str:
             f"Required environment variable '{key}' not found or not configured"
         )
     return value
+
+
+def validate_config():
+    """Ensure all required API keys are present and not placeholders. Exit if not valid."""
+    required_keys = [
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "OPENAI_API_KEY",
+        "DEEPINFRA_TOKEN",
+        "OPENROUTER",
+    ]
+    missing = []
+    placeholder = []
+    for key in required_keys:
+        value = get_env(key)
+        if value is None or value.strip() == "":
+            missing.append(key)
+        elif value == f"your_{key.lower()}_here":
+            placeholder.append(key)
+    if missing or placeholder:
+        print("\n[ERROR] Bubbola configuration is not valid:")
+        if missing:
+            print(f"  Missing keys: {', '.join(missing)}")
+        if placeholder:
+            print(f"  Keys with placeholder values: {', '.join(placeholder)}")
+        print(
+            "\nPlease edit ~/.bubbola/config.env and provide your actual API keys before running any command."
+        )
+        sys.exit(1)
