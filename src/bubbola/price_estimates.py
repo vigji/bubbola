@@ -59,6 +59,13 @@ class TokenCounts:
             self.retry_output_tokens = self.total_output_tokens
 
         input_tokens, output_tokens = _counts_from_response(response)
+
+        # Initialize to 0 if None
+        if self.total_input_tokens is None:
+            self.total_input_tokens = 0
+        if self.total_output_tokens is None:
+            self.total_output_tokens = 0
+
         self.total_input_tokens += input_tokens
         self.total_output_tokens += output_tokens
 
