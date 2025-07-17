@@ -1,8 +1,10 @@
+# %%
 import os
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from pydantic import BaseModel
 
 # Load environment variables
 load_dotenv("/Users/vigji/code/bubbola/config.env")
@@ -69,14 +71,14 @@ class OpenAIModel(LLMModel):
         )
 
 
-# class LocalModel(LLMModel):
-#     def __init__(self, name: str = "local"):
-#         super().__init__(
-#             name=name,
-#             client_class=OpenAI,
-#             base_url="http://localhost:11434/v1",
-#             api_key_env_var=""
-#         )
+class LocalModel(LLMModel):
+    def __init__(self, name: str = "local"):
+        super().__init__(
+            name=name,
+            client_class=OpenAI,
+            base_url="http://127.0.0.1:11434/v1",
+            api_key_env_var="",
+        )
 
 
 # class DeepInfraModel(LLMModel):
@@ -114,7 +116,7 @@ MODEL_NAME_TO_CLASS_MAP = {
     "anthropic/claude-3-haiku:beta": OpenRouterModel,
     "mistralai/mistral-small-3.2-24b-instruct:free": OpenRouterModel,
     # Local models
-    # "gemma3:12b": LocalModel,
+    "gemma3:12b": LocalModel,
     # DeepInfra models
     # "meta-llama/Llama-3.2": DeepInfraModel,
     # OpenAI models
@@ -126,7 +128,7 @@ MODEL_NAME_TO_CLASS_MAP = {
 }
 
 
-def get_model_client_response(required_model: str, force_openrouter=False):
+def get_model_client(required_model: str, force_openrouter=False):
     """Get the appropriate model client based on the model name.
 
     Args:
@@ -162,24 +164,47 @@ def get_model_client_response(required_model: str, force_openrouter=False):
     )
 
 
-def get_client_response_function(
-    required_model: str, pydantic_model=None, force_openrouter=False
-):
-    client = get_model_client_response(required_model, force_openrouter)
+def get_client_response_function(required_model: str, force_openrouter=False):
+    client = get_model_client(required_model, force_openrouter)
+    print(client)
+    return client.chat.completions.create
 
-    # If a pydantic model is provided, use the new .parse interface for structured outputs
-    if pydantic_model is not None:
-        # Use the beta.chat.completions.parse method for strict schema enforcement
-        return client.beta.chat.completions.parse
-    else:
-        # Fallback to regular chat completions for non-structured outputs
-        return client.chat.completions.create
+    # # If a pydantic model is provided, use the new .parse interface for structured outputs
+    # if pydantic_model is not None:
+    #     # Use the beta.chat.completions.parse method for strict schema enforcement
+    #     return client.beta.chat.completions.parse
+    # else:
+    #     # Fallback to regular chat completions for non-structured outputs
+    #     return client.chat.completions.create
+
+
+# %%
+# %%
+
+
+def get_client_response_function_with_schema(
+    required_model: str, pydantic_model: BaseModel, force_openrouter=False
+):
+    client = get_model_client(required_model, force_openrouter)
+
+    if required_model in ["gpt-4o", "gpt-4o-mini", "o3", "o4-mini"]:
+
+        def schemed_client_response(
+            model: str,
+            messages: list[dict],
+            pydantic_model: BaseModel,
+        ):
+            return client.responses.parse(
+                model=model, messages=messages, response_format=pydantic_model
+            )
 
 
 if __name__ == "__main__":
     import base64
+    import random
+    from pathlib import Path
 
-    import requests
+    from PIL import Image
 
     # Test different model types
     test_all_models = True
@@ -187,7 +212,7 @@ if __name__ == "__main__":
     for model_name in MODEL_NAME_TO_CLASS_MAP.keys():
         print(f"\nTesting model: {model_name}")
         try:
-            client = get_model_client_response(model_name)
+            client = get_model_client(model_name)
             print(f"✓ Successfully created client for {model_name}")
         except Exception as e:
             print(f"✗ Failed to create client for {model_name}: {e}")
@@ -200,14 +225,33 @@ if __name__ == "__main__":
     test_image_url = "https://commons.wikimedia.org/wiki/Special:FilePath/Stonehenge.jpg?width=100&format=png"
 
     # get and convert to base64
-    response = requests.get(test_image_url)
-    image_base64 = base64.b64encode(response.content).decode("utf-8")
+    # response = requests.get(test_image_url)
+    # image_base64 = base64.b64encode(response.content).decode("utf-8")
+    temp_image_path = Path("stonehenge.png")
+    # Create new uniform color image
+    image_long_edge = 256
+    base_color = [random.randint(0, 255) for _ in range(3)]
+    image = Image.new("RGB", (image_long_edge, image_long_edge), tuple(base_color))
+    # Add random noise
+    pixels = image.load()
+    for x in range(image.width):
+        for y in range(image.height):
+            noise = random.randint(-10, 10)
+            pixel = [max(0, min(255, c + noise)) for c in base_color]
+            pixels[x, y] = tuple(pixel)
+    print("image size: ", image.size)
+    image.save(temp_image_path)
+    with open(temp_image_path, "rb") as image_file:
+        image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
+    temp_image_path.unlink()
 
-    test_all = True
+    test_all = False
     if test_all:
         models_to_test = MODEL_NAME_TO_CLASS_MAP.keys()
     else:
-        models_to_test = ["mistralai/mistral-small-3.2-24b-instruct:free"]
+        models_to_test = [
+            "gemma3:12b"
+        ]  # ["mistralai/mistral-small-3.2-24b-instruct:free"]
 
     for model_name in models_to_test:
         ##  Note: This would require actual API keys to run
