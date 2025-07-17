@@ -48,7 +48,7 @@ class TokenCounts:
     retry_input_tokens: int = 0
     retry_output_tokens: int = 0
 
-    def add_attempt(self, response, is_retry: bool = False):
+    def add_attempt(self, response):
         """Add token counts from an attempt."""
 
         self.retry_count += 1
