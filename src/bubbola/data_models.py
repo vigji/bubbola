@@ -50,3 +50,14 @@ class DeliveryNote(BaseModel):
         default=None,
         description="A short summary of your reasoning, <100 words>",
     )  # Summary of your reasoning
+
+
+class ImageDescription(BaseModel):
+    description: str | None = Field(
+        default=None,
+        description="A short description of the image, <20 words>",
+    )  # Summary of your reasoning
+    contrast: int | None = Field(
+        default=None,
+        description="A rating of the contrast of the image, from 1 to 10",
+    )  # Rating of the contrast

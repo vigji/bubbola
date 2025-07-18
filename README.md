@@ -249,6 +249,44 @@ To create a new release with binaries:
 - **From Actions Artifacts**: Available in the Actions tab for 30 days
 - **From Release Assets**: Named as `bubbola-{platform}-{arch}`
 
+## Continuous Integration (CI)
+
+The project includes comprehensive CI checks via GitHub Actions that run on every push and pull request.
+
+### CI Workflow
+
+The CI workflow includes:
+
+- **Linting**: Ruff checks for code quality and style
+- **Formatting**: Ruff format verification
+- **Type Checking**: MyPy static type analysis
+- **Pre-commit Hooks**: Verification that all pre-commit hooks pass
+- **Testing**: Pytest with coverage reporting
+- **Cross-platform Testing**: Tests run on Ubuntu, macOS, and Windows
+
+### Coverage Reporting
+
+Test coverage is automatically calculated and reported:
+- Coverage reports are generated for each CI run
+- Coverage data is uploaded to Codecov for tracking
+- Coverage thresholds can be configured in `pyproject.toml`
+
+### Local Development
+
+To run the same checks locally:
+
+```bash
+# Install development dependencies
+uv sync --group dev
+
+# Run all CI checks
+uv run ruff check src tests
+uv run ruff format --check src tests
+uv run mypy src
+uv run pre-commit run --all-files
+uv run pytest --cov=src --cov-report=term-missing
+```
+
 ## Development Workflow
 
 1. **Start development:**
