@@ -72,12 +72,22 @@ jobs:
         retention-days: 30
 
     - name: Test built binary
+      env:
+        # These will be automatically picked up by your config system
+        CI: true
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        DEEPINFRA_TOKEN: ${{ secrets.DEEPINFRA_TOKEN }}
+        OPENROUTER: ${{ secrets.OPENROUTER }}
       run: |
         if [[ "${{ matrix.os }}" == windows* ]]; then
           dist/${{ matrix.target }}/bubbola.exe sanitize tests/assets/0088_001.pdf
+          # Test the small_test flow with the test image
+          dist/${{ matrix.target }}/bubbola.exe extract process --input tests/assets/single_pages_resized/0088_001_001.png --flow small_test
         else
           chmod +x dist/${{ matrix.target }}/bubbola* || true
           dist/${{ matrix.target }}/bubbola* sanitize tests/assets/0088_001.pdf
+          # Test the small_test flow with the test image
+          dist/${{ matrix.target }}/bubbola* extract process --input tests/assets/single_pages_resized/0088_001_001.png --flow small_test
         fi
       shell: bash
 

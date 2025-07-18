@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v2
+      with:
+        version: "latest"
+
+    - name: Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          .venv
+          .uv_cache
+        key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-uv-
+
+    - name: Install dependencies
+      run: |
+        uv sync --group dev
+
+    - name: Lint with ruff
+      run: |
+        uv run ruff check src tests
+        uv run ruff format --check src tests
+
+    - name: Type check with mypy
+      run: |
+        uv run mypy src
+
+    - name: Verify pre-commit hooks
+      run: |
+        uv run pre-commit run --all-files
+
+    - name: Run tests with coverage
+      run: |
+        uv run pytest --cov=src --cov-report=xml --cov-report=term-missing
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+        verbose: true
+
+  # Additional test on different Python versions
+  test-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11']
+        os: [ubuntu-22.04, macos-15, windows-2022]
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v2
+      with:
+        version: "latest"
+
+    - name: Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          .venv
+          .uv_cache
+        key: ${{ runner.os }}-${{ matrix.python-version }}-uv-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.python-version }}-uv-
+
+    - name: Install dependencies
+      run: |
+        uv sync --group dev
+
+    - name: Run tests
+      run: |
+        uv run pytest --cov=src --cov-report=term-missing 
