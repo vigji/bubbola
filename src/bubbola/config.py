@@ -36,7 +36,14 @@ def create_config_from_env():
     if not os.getenv("CI"):
         return  # Only run in CI environments
 
-    config_path = Path.home() / ".bubbola" / "config.env"
+    # Try to get home directory, fallback to current directory if it fails
+    try:
+        home_dir = Path.home()
+        config_path = home_dir / ".bubbola" / "config.env"
+    except (RuntimeError, OSError):
+        # Fallback for CI environments where home directory cannot be determined
+        config_path = Path.cwd() / ".bubbola" / "config.env"
+
     config_path.parent.mkdir(exist_ok=True)
 
     config_content = []
@@ -63,7 +70,13 @@ def load_config():
     # In CI, try to create config from environment variables first
     create_config_from_env()
 
-    config_path = Path.home() / ".bubbola" / "config.env"
+    # Try to get home directory, fallback to current directory if it fails
+    try:
+        home_dir = Path.home()
+        config_path = home_dir / ".bubbola" / "config.env"
+    except (RuntimeError, OSError):
+        # Fallback for CI environments where home directory cannot be determined
+        config_path = Path.cwd() / ".bubbola" / "config.env"
 
     if config_path.exists():
         load_dotenv(config_path)

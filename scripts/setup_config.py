@@ -8,7 +8,14 @@ from pathlib import Path
 
 def create_config():
     """Create ~/.bubbola/config.env with user input."""
-    config_dir = Path.home() / ".bubbola"
+    # Try to get home directory, fallback to current directory if it fails
+    try:
+        home_dir = Path.home()
+        config_dir = home_dir / ".bubbola"
+    except (RuntimeError, OSError):
+        # Fallback for CI environments where home directory cannot be determined
+        config_dir = Path.cwd() / ".bubbola"
+
     config_file = config_dir / "config.env"
 
     config_dir.mkdir(exist_ok=True)

@@ -1,5 +1,12 @@
 # Bubbola
 
+[![CI](https://github.com/vigji/bubbola/workflows/CI/badge.svg)](https://github.com/vigji/bubbola/actions/workflows/ci.yml)
+[![Build Binaries](https://github.com/vigji/bubbola/workflows/Build%20Binaries/badge.svg)](https://github.com/vigji/bubbola/actions/workflows/build-binaries.yml)
+[![Codecov](https://codecov.io/gh/vigji/bubbola/branch/main/graph/badge.svg)](https://codecov.io/gh/vigji/bubbola)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+
 A Python application for PDF and image processing with executable distribution using PyInstaller.
 
 Bubbola extracts structured data from PDF documents and images using AI-powered text recognition and analysis. The tool processes documents to identify and extract relevant information such as measurements, specifications, and other technical data.

@@ -13,7 +13,17 @@ from PIL import Image
 
 class CacheManager:
     def __init__(self, cache_dir: Path | None = None, max_age_days: int = 30):
-        self.cache_dir = cache_dir or Path.home() / ".cache" / "ai_bubbles"
+        if cache_dir is None:
+            # Try to get home directory, fallback to current directory if it fails
+            try:
+                home_dir = Path.home()
+                self.cache_dir = home_dir / ".cache" / "ai_bubbles"
+            except (RuntimeError, OSError):
+                # Fallback for CI environments where home directory cannot be determined
+                self.cache_dir = Path.cwd() / ".cache" / "ai_bubbles"
+        else:
+            self.cache_dir = cache_dir
+
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_path = self.cache_dir / "cache.pkl"
         self.max_age_days = max_age_days

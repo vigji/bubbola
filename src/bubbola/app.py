@@ -12,7 +12,15 @@ class BubbolaApp:
         """Initialize the application."""
         # Load configuration (this will create the template if it doesn't exist)
         load_config()
-        self.config_path = Path.home() / ".bubbola" / "config.json"
+
+        # Try to get home directory, fallback to current directory if it fails
+        try:
+            home_dir = Path.home()
+            self.config_path = home_dir / ".bubbola" / "config.json"
+        except (RuntimeError, OSError):
+            # Fallback for CI environments where home directory cannot be determined
+            self.config_path = Path.cwd() / ".bubbola" / "config.json"
+
         self.config_path.parent.mkdir(exist_ok=True)
 
     def run(self, argv: list[str]) -> int:

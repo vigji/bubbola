@@ -208,7 +208,7 @@ if __name__ == "__main__":
     import tempfile
 
     from bubbola.image_data_loader import sanitize_to_images
-    from bubbola.main import system_prompt
+    from scripts.main import system_prompt
 
     image_path = "/Users/vigji/code/bubbola/tests/assets/single_pages/0088_001_001.png"
     model_name = "gpt-4o"

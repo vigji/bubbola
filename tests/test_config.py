@@ -83,6 +83,36 @@ class TestConfigFunctions:
         value = get_env("SOME_RANDOM_KEY", "default_value")
         assert value == "default_value"
 
+    def test_config_loading_without_home_directory(self):
+        """Test that config loading works when home directory cannot be determined."""
+        # Reset the loaded flag
+        if hasattr(get_env, "_loaded"):
+            delattr(get_env, "_loaded")
+
+        # Mock Path.home() to raise RuntimeError to simulate Windows CI environment
+        with patch(
+            "pathlib.Path.home",
+            side_effect=RuntimeError("Could not determine home directory"),
+        ):
+            # This should not crash and should fallback to current directory
+            value = get_env("SOME_RANDOM_KEY", "default_value")
+            assert value == "default_value"
+
+    def test_config_loading_with_home_directory_failure(self):
+        """Test that config loading works when Path.home() fails (Windows CI issue)."""
+        # Reset the loaded flag
+        if hasattr(get_env, "_loaded"):
+            delattr(get_env, "_loaded")
+
+        # Mock Path.home() to raise RuntimeError like in Windows CI
+        with patch(
+            "pathlib.Path.home",
+            side_effect=RuntimeError("Could not determine home directory"),
+        ):
+            # This should not crash and should fallback to current directory
+            value = get_env("SOME_RANDOM_KEY", "default_value")
+            assert value == "default_value"
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
