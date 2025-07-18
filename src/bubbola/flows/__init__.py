@@ -3,7 +3,8 @@
 import importlib
 from typing import Any
 
-KNOWN_FLOWS = ["lg_concrete_v1", "lg_concrete_v1_test"]
+# Ugly, but avoid file discovery for binaries
+KNOWN_FLOWS = ["lg_concrete_v1", "lg_concrete_v1_test", "small_test"]
 
 
 def _discover_flows() -> dict[str, Any]:

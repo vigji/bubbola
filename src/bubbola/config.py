@@ -16,14 +16,9 @@ EMBEDDED_CONFIG = """# Bubbola Configuration
 # 3. Restart the application
 #
 # You can get these keys from:
-# - AWS: https://console.aws.amazon.com/iam/ (Access Keys)
 # - OpenAI: https://platform.openai.com/api-keys
 # - DeepInfra: https://deepinfra.com/ (API Tokens)
 # - OpenRouter: https://openrouter.ai/ (API Keys)
-
-# AWS Credentials
-AWS_ACCESS_KEY_ID=your_aws_access_key_here
-AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
 
 # OpenAI API Key
 OPENAI_API_KEY=your_openai_api_key_here
@@ -36,8 +31,38 @@ OPENROUTER=your_openrouter_api_key_here
 """
 
 
+def create_config_from_env():
+    """Create config file from environment variables if running in CI."""
+    if not os.getenv("CI"):
+        return  # Only run in CI environments
+
+    config_path = Path.home() / ".bubbola" / "config.env"
+    config_path.parent.mkdir(exist_ok=True)
+
+    config_content = []
+    possible_keys = [
+        "OPENAI_API_KEY",
+        "DEEPINFRA_TOKEN",
+        "OPENROUTER",
+    ]
+
+    for key in possible_keys:
+        value = os.getenv(key)
+        if value:
+            config_content.append(f"{key}={value}")
+
+    if config_content:
+        with open(config_path, "w", encoding="utf-8") as f:
+            f.write("# Bubbola Configuration (auto-generated from environment)\n")
+            f.write("\n".join(config_content))
+        print(f"Created CI configuration from environment variables: {config_path}")
+
+
 def load_config():
     """Load configuration with fallback to embedded template."""
+    # In CI, try to create config from environment variables first
+    create_config_from_env()
+
     config_path = Path.home() / ".bubbola" / "config.env"
 
     if config_path.exists():
@@ -62,7 +87,12 @@ def get_env(key: str, default: str | None = None) -> str | None:
     Returns:
         Environment variable value or default
     """
-    # Load config if not already loaded
+    # First check if environment variable is set (prioritizes GitHub secrets)
+    env_value = os.getenv(key)
+    if env_value is not None:
+        return env_value
+
+    # Load config file only if environment variable is not set
     if not hasattr(get_env, "_loaded"):
         load_config()
         get_env._loaded = True
@@ -93,8 +123,6 @@ def get_required(key: str) -> str:
 def validate_config():
     """Ensure at least one API key is present and not a placeholder. Exit if not valid."""
     possible_keys = [
-        "AWS_ACCESS_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY",
         "OPENAI_API_KEY",
         "DEEPINFRA_TOKEN",
         "OPENROUTER",

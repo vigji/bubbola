@@ -17,15 +17,11 @@ def create_config():
     print("Please provide your API keys:")
     print()
 
-    aws_access_key = input("AWS Access Key ID: ").strip()
-    aws_secret_key = getpass.getpass("AWS Secret Access Key: ").strip()
     openai_key = getpass.getpass("OpenAI API Key: ").strip()
     deepinfra_token = getpass.getpass("DeepInfra Token: ").strip()
     openrouter_key = getpass.getpass("OpenRouter API Key: ").strip()
 
     config_content = f"""# Bubbola Configuration
-AWS_ACCESS_KEY_ID={aws_access_key}
-AWS_SECRET_ACCESS_KEY={aws_secret_key}
 OPENAI_API_KEY={openai_key}
 DEEPINFRA_TOKEN={deepinfra_token}
 OPENROUTER={openrouter_key}
