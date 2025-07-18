@@ -126,9 +126,12 @@ class BubbolaApp:
             )
             print("  --suppliers-csv <file> - File CSV fornitori (opzionale)")
             print("  --prices-csv <file>    - File CSV prezzi (opzionale)")
+            print(
+                "  --yes, -y             - Procede automaticamente senza chiedere conferma"
+            )
             print()
             print(
-                "Nota: Il comando esegue sempre prima una stima dei costi, poi chiede conferma."
+                "Nota: Il comando esegue sempre prima una stima dei costi, poi chiede conferma (a meno che non si usi --yes)."
             )
             print()
             print("Esempi:")
@@ -178,6 +181,7 @@ class BubbolaApp:
             input_path = None
             flow_name = None
             external_files = {}
+            auto_confirm = False
 
             i = 1
             while i < len(args):
@@ -193,6 +197,9 @@ class BubbolaApp:
                 elif args[i] == "--prices-csv" and i + 1 < len(args):
                     external_files["prices_csv"] = Path(args[i + 1])
                     i += 2
+                elif args[i] in ["--yes", "-y"]:
+                    auto_confirm = True
+                    i += 1
                 else:
                     print(f"Errore: Argomento sconosciuto: {args[i]}")
                     return 1
@@ -222,13 +229,8 @@ class BubbolaApp:
                     print("Errore durante la stima dei costi. Interruzione.")
                     return dry_run_result
 
-                # Ask for confirmation
-                print("\n" + "=" * 50)
-                response = (
-                    input("Procedere con l'elaborazione reale? (y/N): ").strip().lower()
-                )
-
-                if response in ["y", "yes", "sì", "si"]:
+                # Ask for confirmation (unless auto-confirm is enabled)
+                if auto_confirm:
                     print("\n=== ELABORAZIONE REALE ===")
                     return processor.process_batch(
                         input_path=input_path,
@@ -237,8 +239,24 @@ class BubbolaApp:
                         external_files=external_files if external_files else None,
                     )
                 else:
-                    print("Elaborazione annullata dall'utente.")
-                    return 0
+                    print("\n" + "=" * 50)
+                    response = (
+                        input("Procedere con l'elaborazione reale? (y/N): ")
+                        .strip()
+                        .lower()
+                    )
+
+                    if response in ["y", "yes", "sì", "si"]:
+                        print("\n=== ELABORAZIONE REALE ===")
+                        return processor.process_batch(
+                            input_path=input_path,
+                            flow_name=flow_name,
+                            dry_run=False,
+                            external_files=external_files if external_files else None,
+                        )
+                    else:
+                        print("Elaborazione annullata dall'utente.")
+                        return 0
 
             except Exception as e:
                 print(f"Errore durante l'elaborazione: {e}")

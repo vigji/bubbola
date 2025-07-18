@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from bubbola.data_models import DeliveryNote
+from bubbola.data_models import DeliveryNote, ImageDescription
 from bubbola.image_data_loader import sanitize_to_images
 from bubbola.image_processing import ParallelImageProcessor
 from bubbola.results_converter import create_results_csv
@@ -42,6 +42,7 @@ class BatchProcessor:
         # Available data models
         self.available_models = {
             "DeliveryNote": DeliveryNote,
+            "ImageDescription": ImageDescription,
         }
 
         # Global flag for graceful shutdown

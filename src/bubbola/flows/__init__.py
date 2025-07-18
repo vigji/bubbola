@@ -1,9 +1,15 @@
 """Flows module for batch processing configurations."""
 
-import importlib
 from typing import Any
 
-# Ugly, but avoid file discovery for binaries
+# Explicit imports for PyInstaller compatibility
+try:
+    from bubbola.flows import lg_concrete_v1, lg_concrete_v1_test, small_test
+except ImportError:
+    # Fallback for development
+    pass
+
+# Registry of known flow modules
 KNOWN_FLOWS = ["lg_concrete_v1", "lg_concrete_v1_test", "small_test"]
 
 
@@ -11,16 +17,19 @@ def _discover_flows() -> dict[str, Any]:
     """Discover flows from the registry."""
     flows = {}
 
-    # Registry of known flow modules - update this when adding new flows
-    # Note: Test flows (ending with '_test') are excluded from this list
+    # Try explicit imports first
+    flow_modules = {
+        "lg_concrete_v1": lg_concrete_v1,
+        "lg_concrete_v1_test": lg_concrete_v1_test,
+        "small_test": small_test,
+    }
 
-    for module_name in KNOWN_FLOWS:
+    for module_name, module in flow_modules.items():
         try:
-            module = importlib.import_module(f"bubbola.flows.{module_name}")
             if hasattr(module, "flow"):
                 module.flow.update({"name": module_name})
                 flows[module_name] = module.flow
-        except (ImportError, AttributeError):
+        except (AttributeError, Exception):
             continue
 
     return flows
