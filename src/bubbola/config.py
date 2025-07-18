@@ -91,29 +91,34 @@ def get_required(key: str) -> str:
 
 
 def validate_config():
-    """Ensure all required API keys are present and not placeholders. Exit if not valid."""
-    required_keys = [
+    """Ensure at least one API key is present and not a placeholder. Exit if not valid."""
+    possible_keys = [
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
         "OPENAI_API_KEY",
         "DEEPINFRA_TOKEN",
         "OPENROUTER",
     ]
-    missing = []
-    placeholder = []
-    for key in required_keys:
+
+    # Check if at least one key is properly configured
+    has_valid_key = False
+    missing_or_placeholder = []
+
+    for key in possible_keys:
         value = get_env(key)
         if value is None or value.strip() == "":
-            missing.append(key)
+            missing_or_placeholder.append(key)
         elif value == f"your_{key.lower()}_here":
-            placeholder.append(key)
-    if missing or placeholder:
+            missing_or_placeholder.append(key)
+        else:
+            has_valid_key = True
+
+    if not has_valid_key:
         print("\n[ERROR] Bubbola configuration is not valid:")
-        if missing:
-            print(f"  Missing keys: {', '.join(missing)}")
-        if placeholder:
-            print(f"  Keys with placeholder values: {', '.join(placeholder)}")
         print(
-            "\nPlease edit ~/.bubbola/config.env and provide your actual API keys before running any command."
+            f"  All keys are missing or have placeholder values: {', '.join(missing_or_placeholder)}"
+        )
+        print(
+            "\nPlease edit ~/.bubbola/config.env and provide at least one actual API key before running any command."
         )
         sys.exit(1)

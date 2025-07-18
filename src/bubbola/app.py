@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from bubbola.config import load_config, validate_config
+from bubbola.config import load_config
 
 
 class BubbolaApp:
@@ -12,7 +12,6 @@ class BubbolaApp:
         """Initialize the application."""
         # Load configuration (this will create the template if it doesn't exist)
         load_config()
-        validate_config()
         self.config_path = Path.home() / ".bubbola" / "config.json"
         self.config_path.parent.mkdir(exist_ok=True)
 
@@ -162,6 +161,11 @@ class BubbolaApp:
                 return 1
 
         elif subcommand == "process":
+            # Validate config only for process command
+            from bubbola.config import validate_config
+
+            validate_config()
+
             # Parse arguments manually
             input_path = None
             flow_name = None

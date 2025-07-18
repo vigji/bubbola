@@ -206,6 +206,34 @@ class LLMModel:
         client.model_name = self.name
         return client
 
+    def validate_token(self) -> None:
+        """Validate that the required API token is available for this model.
+
+        Raises:
+            ValueError: If the required token is not available
+        """
+        # If no API key required (local/mock models), we're good
+        if not self.api_key_env_var:
+            return
+
+        # Check if the required token is available and properly configured
+        try:
+            from bubbola.config import get_required
+
+            token_value = get_required(self.api_key_env_var)
+            if (
+                not token_value
+                or token_value == f"your_{self.api_key_env_var.lower()}_here"
+            ):
+                raise ValueError(
+                    f"Token for {self.api_key_env_var} is not properly configured"
+                )
+        except ValueError as e:
+            raise ValueError(
+                f"Model '{self.name}' requires {self.api_key_env_var} to be configured. "
+                f"Please add it to ~/.bubbola/config.env: {e}"
+            ) from e
+
     def format_image_message(self, image_base64: str) -> dict[str, Any]:
         """Format an image for inclusion in messages."""
         return self.api_interface.format_image_message(image_base64)
@@ -440,8 +468,13 @@ def get_model_client(required_model: str, force_openrouter=False):
             print("Forcing OpenRouter usage")
             return OpenRouterModel(name=required_model)
 
-        # Use the mapped model class
-        return model_class(name=required_model)
+        # Create the model instance
+        model_instance = model_class(name=required_model)
+
+        # Validate that the required token is available for this model
+        model_instance.validate_token()
+
+        return model_instance
 
     # If model not found in mapping, raise error
     raise ValueError(

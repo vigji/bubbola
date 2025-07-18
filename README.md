@@ -2,7 +2,56 @@
 
 A Python application for PDF and image processing with executable distribution using PyInstaller.
 
-## Project Structure
+Bubbola extracts structured data from PDF documents and images using AI-powered text recognition and analysis. The tool processes documents to identify and extract relevant information such as measurements, specifications, and other technical data.
+
+**Note:** The extraction process requires API keys to be configured before use. See [CONFIGURATION.md](CONFIGURATION.md) for setup instructions.
+
+## Istruzioni
+
+### Utilizzo del Tool CLI
+
+Bubbola è un tool da riga di comando per l'elaborazione di PDF e immagini. Ecco i comandi principali:
+
+#### Comandi Base
+
+```bash
+# Mostra l'aiuto
+bubbola --help
+
+# Verifica la versione
+bubbola version
+
+# Elabora un PDF
+bubbola sanitize <percorso-pdf>
+
+# Elabora un'immagine
+bubbola process-image <percorso-immagine>
+```
+
+#### Esempi di Utilizzo
+
+```bash
+# Elabora un PDF di test
+bubbola sanitize tests/assets/0088_001.pdf
+
+# Elabora un'immagine PNG
+bubbola process-image tests/assets/single_pages/0088_001_001.png
+
+# Elabora con output personalizzato
+bubbola sanitize input.pdf --output-dir ./risultati
+```
+
+#### Opzioni Disponibili
+
+- `--output-dir <directory>`: Specifica la directory di output
+- `--verbose`: Abilita output dettagliato
+- `--config <file>`: Usa un file di configurazione specifico
+
+**Nota:** Prima di utilizzare il tool, è necessario configurare le chiavi API. Vedi [CONFIGURATION.md](CONFIGURATION.md) per le istruzioni di configurazione.
+
+## Developers
+
+### Project Structure
 
 ```
 bubbola/
@@ -22,11 +71,10 @@ bubbola/
 │   └── build-binaries.yml # Cross-platform build workflow
 ├── bubbola.spec           # PyInstaller configuration
 ├── pyproject.toml         # Project configuration
-├── Makefile              # Development tasks
 └── README.md             # This file
 ```
 
-## Development Setup
+### Development Setup
 
 **Requirements:** Python 3.11
 
@@ -53,12 +101,9 @@ bubbola/
 
 **Important:** For building binaries, we recommend using pip as it provides better compatibility with PyInstaller. UV is great for development but may have issues with some binary packaging scenarios.
 
-
-## Building Binaries
+### Building Binaries
 
 Bubbola can be compiled into standalone executables for multiple platforms using PyInstaller. The build system uses a **single, unified approach** that works both locally and in GitHub Actions.
-
-**Note:** We use `make build` for local development and the same build script is used automatically in GitHub Actions.
 
 ### Local Binary Build
 
@@ -67,15 +112,6 @@ Bubbola can be compiled into standalone executables for multiple platforms using
 - Build dependencies installed: `pip install -e ".[build]"`
 
 **Recommended Build Method:**
-```bash
-# Build for current platform
-make build
-
-# Clean build (removes previous artifacts)
-make build-clean
-```
-
-**Direct Build Script:**
 ```bash
 # Using the build script directly
 python scripts/build_binary.py
@@ -86,8 +122,6 @@ python scripts/build_binary.py --output-dir ./my-binaries
 # Clean build
 python scripts/build_binary.py --clean
 ```
-
-
 
 ### Supported Platforms
 
@@ -147,9 +181,9 @@ This project uses UV for dependency management and virtual environment handling:
 
 This project uses Ruff for linting and formatting:
 
-- **Format code:** `ruff format src/ tests/`
-- **Lint code:** `ruff check src/ tests/`
-- **Auto-fix issues:** `ruff check --fix src/ tests/`
+- **Format code:** `uv run ruff format src/ tests/`
+- **Lint code:** `uv run ruff check src/ tests/`
+- **Auto-fix issues:** `uv run ruff check --fix src/ tests/`
 
 #### Git Hooks for Ruff
 
@@ -226,45 +260,46 @@ To create a new release with binaries:
 
 3. **Test your changes:**
    ```bash
-   make test
-   make lint
+   uv run pytest
+   uv run ruff check src/ tests/
    ```
 
 4. **Format and lint code:**
    ```bash
-   make format
+   uv run ruff format src/ tests/
+   uv run ruff check --fix src/ tests/
    ```
 
 5. **Build and test executable:**
    ```bash
-   make build
+   python scripts/build_binary.py
    ./dist/bubbola --help
    ```
 
-## Makefile Targets
-
-The project includes a comprehensive Makefile for common development tasks:
+## Common Development Commands
 
 ```bash
-# Show all available targets
-make help
+# Installation and setup
+uv sync                    # Sync dependencies
+uv pip install -e ".[build]"  # Install in development mode
 
-# Installation
-make install          # Install in development mode
-make install-dev      # Install with dev dependencies
+# Testing
+uv run pytest             # Run all tests
+uv run pytest tests/test_specific.py  # Run specific test file
 
-# Building
-make build            # Build binary for current platform
-make build-clean      # Clean and build binary
+# Code quality
+uv run ruff check src/ tests/     # Lint code
+uv run ruff format src/ tests/    # Format code
+uv run ruff check --fix src/ tests/  # Auto-fix issues
 
-# Development
-make test             # Run tests
-make lint             # Run linting checks
-make format           # Format code
-make check            # Run all checks (lint + test)
+# Building (use pip for better PyInstaller compatibility)
+pip install -e ".[build]"         # Install build dependencies
+python scripts/build_binary.py    # Build binary
+python scripts/build_binary.py --clean  # Clean build
 
-# Cleaning
-make clean            # Clean build artifacts
+# Running the application
+uv run python -m bubbola.cli --help  # Run CLI with help
+uv run python -m bubbola.cli version  # Run specific command
 ```
 
 ## Configuration
