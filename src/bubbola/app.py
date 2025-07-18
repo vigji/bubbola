@@ -240,23 +240,31 @@ class BubbolaApp:
                     )
                 else:
                     print("\n" + "=" * 50)
-                    response = (
-                        input("Procedere con l'elaborazione reale? (y/N): ")
-                        .strip()
-                        .lower()
-                    )
-
-                    if response in ["y", "yes", "sì", "si"]:
-                        print("\n=== ELABORAZIONE REALE ===")
-                        return processor.process_batch(
-                            input_path=input_path,
-                            flow_name=flow_name,
-                            dry_run=False,
-                            external_files=external_files if external_files else None,
+                    try:
+                        response = (
+                            input("Procedere con l'elaborazione reale? (y/N): ")
+                            .strip()
+                            .lower()
                         )
-                    else:
-                        print("Elaborazione annullata dall'utente.")
-                        return 0
+
+                        if response in ["y", "yes", "sì", "si"]:
+                            print("\n=== ELABORAZIONE REALE ===")
+                            return processor.process_batch(
+                                input_path=input_path,
+                                flow_name=flow_name,
+                                dry_run=False,
+                                external_files=external_files
+                                if external_files
+                                else None,
+                            )
+                        else:
+                            print("Elaborazione annullata dall'utente.")
+                            return 0
+                    except EOFError:
+                        print(
+                            "Errore: Impossibile leggere l'input. Usa --yes per bypassare la conferma."
+                        )
+                        return 1
 
             except Exception as e:
                 print(f"Errore durante l'elaborazione: {e}")
