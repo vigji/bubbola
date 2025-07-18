@@ -216,3 +216,6 @@ config.env
 
 tests/results/
 tests/assets/results/
+tests/assets/single_pages/results/
+tests/assets/single_pages_resized/results/
+
