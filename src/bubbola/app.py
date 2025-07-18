@@ -44,10 +44,13 @@ class BubbolaApp:
             print(
                 "  sanitize  - Converti PDF/immagini in immagini sanitizzate a singola pagina"
             )
-            print("  extract     - Elabora batch di immagini con flussi configurabili")
+            print("  list      - Lista tutti i flussi di estrazione disponibili")
+            print("  extract   - Estrae dati da un batch di immagini")
             return 0
         elif command == "sanitize":
             return self._handle_sanitize_command(argv[1:])
+        elif command == "list":
+            return self._handle_list_command(argv[1:])
         elif command == "extract":
             return self._handle_extract_command(argv[1:])
         else:
@@ -109,15 +112,44 @@ class BubbolaApp:
             print(f"Errore durante la sanitizzazione: {e}")
             return 1
 
+    def _handle_list_command(self, args: list[str]) -> int:
+        """Handle the list command."""
+        if args:
+            print("Utilizzo: bubbola list")
+            print("  Lista tutti i flussi di estrazione disponibili")
+            return 1
+
+        try:
+            from bubbola.batch_processor import BatchProcessor
+
+            processor = BatchProcessor()
+            flows = processor.list_flows()
+
+            if not flows:
+                print("Nessun flusso trovato.")
+                return 0
+
+            print("Flussi di estrazione disponibili:")
+            for flow in flows:
+                print(f"  {flow.name}: {flow.description}")
+                print(f"    Modello: {flow.model_name}")
+                print(f"    Modello dati: {flow.data_model.__name__}")
+                if flow.external_file_options:
+                    print("    Opzioni file esterni:")
+                    for option, description in flow.external_file_options.items():
+                        print(f"      --{option}: {description}")
+                print()
+            return 0
+
+        except Exception as e:
+            print(f"Errore durante il caricamento dei flussi: {e}")
+            return 1
+
     def _handle_extract_command(self, args: list[str]) -> int:
         """Handle the extract command."""
         if not args:
-            print("Utilizzo: bubbola extract <comando> [opzioni]")
-            print("Comandi disponibili:")
-            print("  list           - Lista tutti i flussi di estrazione disponibili")
-            print("  process        - Estrae dati da un batch di immagini")
-            print()
-            print("Opzioni per process:")
+            print("Utilizzo: bubbola extract [opzioni]")
+            print("Opzioni:")
             print(
                 "  --input <percorso>     - Percorso ai file da elaborare (obbligatorio)"
             )
@@ -135,141 +167,104 @@ class BubbolaApp:
             )
             print()
             print("Esempi:")
-            print("  bubbola extract list")
-            print("  bubbola extract process --input <percorso> --flow <nome_flusso>")
+            print("  bubbola extract --input <percorso> --flow <nome_flusso>")
             print(
-                "  bubbola extract process --input <percorso> --flow delivery_notes --suppliers-csv <file>"
+                "  bubbola extract --input <percorso> --flow delivery_notes --suppliers-csv <file>"
             )
             return 1
 
-        subcommand = args[0]
+        # Validate config
+        from bubbola.config import validate_config
 
-        if subcommand == "list":
-            try:
-                from bubbola.batch_processor import BatchProcessor
+        validate_config()
 
-                processor = BatchProcessor()
-                flows = processor.list_flows()
+        # Parse arguments manually
+        input_path = None
+        flow_name = None
+        external_files = {}
+        auto_confirm = False
 
-                if not flows:
-                    print("Nessun flusso trovato.")
-                    return 0
-
-                print("Flussi di estrazione disponibili:")
-                for flow in flows:
-                    print(f"  {flow.name}: {flow.description}")
-                    print(f"    Modello: {flow.model_name}")
-                    print(f"    Modello dati: {flow.data_model.__name__}")
-                    if flow.external_file_options:
-                        print("    Opzioni file esterni:")
-                        for option, description in flow.external_file_options.items():
-                            print(f"      --{option}: {description}")
-                    print()
-                return 0
-
-            except Exception as e:
-                print(f"Errore durante il caricamento dei flussi: {e}")
+        i = 0
+        while i < len(args):
+            if args[i] == "--input" and i + 1 < len(args):
+                input_path = Path(args[i + 1])
+                i += 2
+            elif args[i] == "--flow" and i + 1 < len(args):
+                flow_name = args[i + 1]
+                i += 2
+            elif args[i] == "--suppliers-csv" and i + 1 < len(args):
+                external_files["suppliers_csv"] = Path(args[i + 1])
+                i += 2
+            elif args[i] == "--prices-csv" and i + 1 < len(args):
+                external_files["prices_csv"] = Path(args[i + 1])
+                i += 2
+            elif args[i] in ["--yes", "-y"]:
+                auto_confirm = True
+                i += 1
+            else:
+                print(f"Errore: Argomento sconosciuto: {args[i]}")
                 return 1
 
-        elif subcommand == "process":
-            # Validate config only for process command
-            from bubbola.config import validate_config
+        if not input_path:
+            print("Errore: --input è obbligatorio per il comando extract")
+            return 1
+        if not flow_name:
+            print("Errore: --flow è obbligatorio per il comando extract")
+            return 1
 
-            validate_config()
+        try:
+            from bubbola.batch_processor import BatchProcessor
 
-            # Parse arguments manually
-            input_path = None
-            flow_name = None
-            external_files = {}
-            auto_confirm = False
+            processor = BatchProcessor()
 
-            i = 1
-            while i < len(args):
-                if args[i] == "--input" and i + 1 < len(args):
-                    input_path = Path(args[i + 1])
-                    i += 2
-                elif args[i] == "--flow" and i + 1 < len(args):
-                    flow_name = args[i + 1]
-                    i += 2
-                elif args[i] == "--suppliers-csv" and i + 1 < len(args):
-                    external_files["suppliers_csv"] = Path(args[i + 1])
-                    i += 2
-                elif args[i] == "--prices-csv" and i + 1 < len(args):
-                    external_files["prices_csv"] = Path(args[i + 1])
-                    i += 2
-                elif args[i] in ["--yes", "-y"]:
-                    auto_confirm = True
-                    i += 1
-                else:
-                    print(f"Errore: Argomento sconosciuto: {args[i]}")
-                    return 1
+            # Always do a dry run first
+            print("=== STIMA COSTI ===")
+            dry_run_result = processor.process_batch(
+                input_path=input_path,
+                flow_name=flow_name,
+                dry_run=True,
+                external_files=external_files if external_files else None,
+            )
 
-            if not input_path:
-                print("Errore: --input è obbligatorio per il comando process")
-                return 1
-            if not flow_name:
-                print("Errore: --flow è obbligatorio per il comando process")
-                return 1
+            if dry_run_result != 0:
+                print("Errore durante la stima dei costi. Interruzione.")
+                return dry_run_result
 
-            try:
-                from bubbola.batch_processor import BatchProcessor
-
-                processor = BatchProcessor()
-
-                # Always do a dry run first
-                print("=== STIMA COSTI ===")
-                dry_run_result = processor.process_batch(
+            # Ask for confirmation (unless auto-confirm is enabled)
+            if auto_confirm:
+                print("\n=== ELABORAZIONE REALE ===")
+                return processor.process_batch(
                     input_path=input_path,
                     flow_name=flow_name,
-                    dry_run=True,
+                    dry_run=False,
                     external_files=external_files if external_files else None,
                 )
-
-                if dry_run_result != 0:
-                    print("Errore durante la stima dei costi. Interruzione.")
-                    return dry_run_result
-
-                # Ask for confirmation (unless auto-confirm is enabled)
-                if auto_confirm:
-                    print("\n=== ELABORAZIONE REALE ===")
-                    return processor.process_batch(
-                        input_path=input_path,
-                        flow_name=flow_name,
-                        dry_run=False,
-                        external_files=external_files if external_files else None,
+            else:
+                print("\n" + "=" * 50)
+                try:
+                    response = (
+                        input("Procedere con l'elaborazione reale? (y/N): ")
+                        .strip()
+                        .lower()
                     )
-                else:
-                    print("\n" + "=" * 50)
-                    try:
-                        response = (
-                            input("Procedere con l'elaborazione reale? (y/N): ")
-                            .strip()
-                            .lower()
+
+                    if response in ["y", "yes", "sì", "si"]:
+                        print("\n=== ELABORAZIONE REALE ===")
+                        return processor.process_batch(
+                            input_path=input_path,
+                            flow_name=flow_name,
+                            dry_run=False,
+                            external_files=external_files if external_files else None,
                         )
+                    else:
+                        print("Elaborazione annullata dall'utente.")
+                        return 0
+                except EOFError:
+                    print(
+                        "Errore: Impossibile leggere l'input. Usa --yes per bypassare la conferma."
+                    )
+                    return 1
 
-                        if response in ["y", "yes", "sì", "si"]:
-                            print("\n=== ELABORAZIONE REALE ===")
-                            return processor.process_batch(
-                                input_path=input_path,
-                                flow_name=flow_name,
-                                dry_run=False,
-                                external_files=external_files
-                                if external_files
-                                else None,
-                            )
-                        else:
-                            print("Elaborazione annullata dall'utente.")
-                            return 0
-                    except EOFError:
-                        print(
-                            "Errore: Impossibile leggere l'input. Usa --yes per bypassare la conferma."
-                        )
-                        return 1
-
-            except Exception as e:
-                print(f"Errore durante l'elaborazione: {e}")
-                return 1
-
-        else:
-            print(f"Comando sconosciuto: {subcommand}")
+        except Exception as e:
+            print(f"Errore durante l'elaborazione: {e}")
             return 1

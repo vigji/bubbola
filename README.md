@@ -42,17 +42,27 @@ bubbola process-image <percorso-immagine>
 bubbola sanitize tests/assets/0088_001.pdf
 
 # Elabora un'immagine PNG
-bubbola process-image tests/assets/single_pages/0088_001_001.png
+bubbola sanitize tests/assets/single_pages/0088_001_001.png
 
 # Elabora con output personalizzato
-bubbola sanitize input.pdf --output-dir ./risultati
+bubbola sanitize input.pdf --output ./risultati
+
+# Lista i flussi disponibili
+bubbola list
+
+# Estrai dati da immagini
+bubbola extract --input tests/assets/single_pages/ --flow small_test --yes
 ```
 
 #### Opzioni Disponibili
 
-- `--output-dir <directory>`: Specifica la directory di output
-- `--verbose`: Abilita output dettagliato
-- `--config <file>`: Usa un file di configurazione specifico
+- `--output <directory>`: Specifica la directory di output (per sanitize)
+- `--max-size <pixels>`: Dimensione massima dell'edge in pixel (per sanitize)
+- `--input <path>`: Percorso ai file da elaborare (per extract)
+- `--flow <name>`: Nome del flusso da utilizzare (per extract)
+- `--suppliers-csv <file>`: File CSV fornitori (per extract)
+- `--prices-csv <file>`: File CSV prezzi (per extract)
+- `--yes, -y`: Procede automaticamente senza chiedere conferma (per extract)
 
 **Nota:** Prima di utilizzare il tool, è necessario configurare le chiavi API. Vedi [CONFIGURATION.md](CONFIGURATION.md) per le istruzioni di configurazione.
 

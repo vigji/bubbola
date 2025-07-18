@@ -47,17 +47,17 @@ You can create custom flows by adding JSON files to this directory. Each flow fi
 
 1. **List available flows**:
    ```bash
-   bubbola batch list
+   bubbola list
    ```
 
 2. **Process images with a flow**:
    ```bash
-   bubbola batch process --input /path/to/images --flow delivery_notes
+   bubbola extract --input /path/to/images --flow delivery_notes
    ```
 
 3. **Dry run to estimate costs**:
    ```bash
-   bubbola batch process --input /path/to/images --flow delivery_notes --dry-run
+   bubbola extract --input /path/to/images --flow delivery_notes --yes
    ```
 
 ## Flow Configuration Options
@@ -69,4 +69,4 @@ When processing, you can customize various parameters:
 - `--max-retries`: Maximum retries for failed requests (default: 5)
 - `--max-edge-size`: Maximum image edge size in pixels (default: 1000)
 - `--output`: Custom output directory (default: auto-generated)
-- `--dry-run`: Estimate costs without making API calls 
+- `--yes, -y`: Skip confirmation and proceed automatically 
