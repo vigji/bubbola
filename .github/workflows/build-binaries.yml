@@ -82,12 +82,12 @@ jobs:
         if [[ "${{ matrix.os }}" == windows* ]]; then
           dist/${{ matrix.target }}/bubbola.exe sanitize tests/assets/0088_001.pdf
           # Test the small_test flow with the test image
-          dist/${{ matrix.target }}/bubbola.exe extract process --input tests/assets/single_pages_resized/0088_001_001.png --flow small_test --yes
+          dist/${{ matrix.target }}/bubbola.exe extract --input tests/assets/single_pages_resized/0088_001_001.png --flow small_test --yes
         else
           chmod +x dist/${{ matrix.target }}/bubbola* || true
           dist/${{ matrix.target }}/bubbola* sanitize tests/assets/0088_001.pdf
           # Test the small_test flow with the test image
-          dist/${{ matrix.target }}/bubbola* extract process --input tests/assets/single_pages_resized/0088_001_001.png --flow small_test --yes
+          dist/${{ matrix.target }}/bubbola* extract --input tests/assets/single_pages_resized/0088_001_001.png --flow small_test --yes
         fi
       shell: bash
 
