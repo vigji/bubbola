@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from bubbola.data_models import DeliveryNote, ImageDescription
+from bubbola.data_models import DeliveryNote, DeliveryNoteFatturaMatch, ImageDescription
 from bubbola.image_data_loader import sanitize_to_images
 from bubbola.image_processing import ParallelImageProcessor
 from bubbola.results_converter import create_results_csv
@@ -27,12 +27,14 @@ class ProcessingFlow:
         description: str = "",
         external_file_options: dict[str, str] | None = None,
     ):
+        print("INITIALIZING")
         self.name = name
         self.data_model = data_model
         self.system_prompt = system_prompt
         self.model_name = model_name
         self.description = description
         self.external_file_options = external_file_options or {}
+        print("INITIALIZED")
 
 
 class BatchProcessor:
@@ -43,6 +45,7 @@ class BatchProcessor:
         self.available_models = {
             "DeliveryNote": DeliveryNote,
             "ImageDescription": ImageDescription,
+            "DeliveryNoteFatturaMatch": DeliveryNoteFatturaMatch,
         }
 
         # Global flag for graceful shutdown
@@ -62,7 +65,8 @@ class BatchProcessor:
         self, flow_config: dict[str, Any], external_files: dict[str, Path] | None = None
     ) -> ProcessingFlow:
         """Convert a flow configuration dictionary to a ProcessingFlow object."""
-        return ProcessingFlow(
+        print("...")
+        a = ProcessingFlow(
             name=flow_config["name"],
             data_model=self.available_models[flow_config["data_model"]],
             system_prompt=flow_config["system_prompt"],
@@ -70,6 +74,8 @@ class BatchProcessor:
             description=flow_config["description"],
             external_file_options=flow_config.get("external_file_options"),
         )
+        print(a)
+        return a
 
     def list_flows(self) -> list[ProcessingFlow]:
         """List all available processing flows."""
@@ -92,16 +98,19 @@ class BatchProcessor:
         self, flow_name: str, external_files: dict[str, Path] | None = None
     ) -> ProcessingFlow | None:
         """Get a specific processing flow by name."""
+        print("GET FLOW0")
         from bubbola.flows import get_flows
 
+        print("GET FLOW")
         flows_dict = get_flows()
-
+        print(flows_dict)
         # First try exact match by module name
         if flow_name in flows_dict:
             flow_config = flows_dict[flow_name]
             try:
                 # If we have external files, we need to call get_flow() with them
                 if external_files:
+                    print("EXTERNAL FILES")
                     # Import the module and call get_flow with external files
                     module = __import__(
                         f"bubbola.flows.{flow_name}", fromlist=["get_flow"]
@@ -149,7 +158,10 @@ class BatchProcessor:
     ) -> int:
         """Process a batch of images using the specified flow."""
         # Get the processing flow
+        print("PROCESSING BATCH")
+        print(external_files)
         flow = self.get_flow(flow_name, external_files)
+        print("-----------")
         if not flow:
             print(f"Error: Flow '{flow_name}' not found.")
             print("Available flows:")

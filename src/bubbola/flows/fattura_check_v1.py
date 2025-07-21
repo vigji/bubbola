@@ -17,10 +17,16 @@ def get_flow(external_files: dict[str, Path] | None = None) -> dict[str, Any]:
     Returns:
         Flow configuration dictionary
     """
-    fattura = external_files["fattura"]
+    # assert external_files is not None, "Fattura file is mandatory"
+    if external_files and "fattura" in external_files:
+        fattura = external_files["fattura"]
+        linee_csv = linee_csv_str(fattura)
+        cedente_json = cedente_json_str(fattura)
+    else:
+        fattura = None
+        linee_csv = None
+        cedente_json = None
 
-    linee_csv = linee_csv_str(fattura)
-    cedente_json = cedente_json_str(fattura)
     # Build the system prompt with injected data
     system_prompt = f"""You are a helpful assistant in ICOP SpA accounting department.
 
@@ -46,7 +52,8 @@ My goal is to find mismatches; you have to be flexible in matching, but accurate
 """
 
     return {
-        "data_model": "DeliveryNote",
+        "name": "fattura_check_v1",
+        "data_model": "DeliveryNoteFatturaMatch",
         "system_prompt": system_prompt,
         "model_name": "gpt-4o-mini",
         "description": "check a transportation document against an existing fattura elettronica",

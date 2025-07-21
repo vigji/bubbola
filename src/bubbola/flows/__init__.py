@@ -4,7 +4,12 @@ from typing import Any
 
 # Explicit imports for PyInstaller compatibility
 try:
-    from bubbola.flows import lg_concrete_v1, lg_concrete_v1_test, small_test
+    from bubbola.flows import (
+        fattura_check_v1,
+        lg_concrete_v1,
+        lg_concrete_v1_test,
+        small_test,
+    )
 except ImportError:
     # Fallback for development
     pass
@@ -27,6 +32,7 @@ def _discover_flows() -> dict[str, Any]:
         "lg_concrete_v1": lg_concrete_v1,
         "lg_concrete_v1_test": lg_concrete_v1_test,
         "small_test": small_test,
+        "fattura_check_v1": fattura_check_v1,
     }
 
     for module_name, module in flow_modules.items():

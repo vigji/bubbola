@@ -158,6 +158,7 @@ class BubbolaApp:
             )
             print("  --suppliers-csv <file> - File CSV fornitori (opzionale)")
             print("  --prices-csv <file>    - File CSV prezzi (opzionale)")
+            print("  --fattura <file>       - File fattura elettronica (obbligatorio)")
             print(
                 "  --yes, -y             - Procede automaticamente senza chiedere conferma"
             )
@@ -185,6 +186,7 @@ class BubbolaApp:
         auto_confirm = False
 
         i = 0
+        print(args)
         while i < len(args):
             if args[i] == "--input" and i + 1 < len(args):
                 input_path = Path(args[i + 1])
@@ -198,13 +200,17 @@ class BubbolaApp:
             elif args[i] == "--prices-csv" and i + 1 < len(args):
                 external_files["prices_csv"] = Path(args[i + 1])
                 i += 2
+            elif args[i] == "--fattura" and i + 1 < len(args):
+                print("BAAAAA")
+                external_files["fattura"] = Path(args[i + 1])
+                i += 2
             elif args[i] in ["--yes", "-y"]:
                 auto_confirm = True
                 i += 1
             else:
                 print(f"Errore: Argomento sconosciuto: {args[i]}")
                 return 1
-
+        print(external_files)
         if not input_path:
             print("Errore: --input è obbligatorio per il comando extract")
             return 1
@@ -219,6 +225,7 @@ class BubbolaApp:
 
             # Always do a dry run first
             print("=== STIMA COSTI ===")
+            print(external_files)
             dry_run_result = processor.process_batch(
                 input_path=input_path,
                 flow_name=flow_name,
