@@ -10,7 +10,12 @@ except ImportError:
     pass
 
 # Registry of known flow modules
-KNOWN_FLOWS = ["lg_concrete_v1", "lg_concrete_v1_test", "small_test"]
+KNOWN_FLOWS = [
+    "lg_concrete_v1",
+    "lg_concrete_v1_test",
+    "small_test",
+    "fattura_check_v1",
+]
 
 
 def _discover_flows() -> dict[str, Any]:

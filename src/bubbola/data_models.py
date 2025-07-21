@@ -52,6 +52,49 @@ class DeliveryNote(BaseModel):
     )  # Summary of your reasoning
 
 
+class DeliveryItemFatturaMatch(BaseModel):
+    match_in_fattura: bool | None = Field(
+        default=None,
+        description="True if the item is present in the invoice, False otherwise.",
+    )
+    match_in_ddt: bool | None = Field(
+        default=None,
+        description="True if the item is present in the transportation document, False otherwise.",
+    )
+    descrizione: str | None = Field(
+        default=None,
+        description="Name of the item.",
+    )
+    numero_linea_fattura: str | None = Field(
+        default=None,
+        description="Number of the line in the invoice.",
+    )
+    quantita_in_fattura: float | None = Field(
+        default=None,
+        description="Quantity of the item as found in the invoice (if match_in_fattura is True).",
+    )
+    quantita_in_ddt: float | None = Field(
+        default=None,
+        description="Quantity of the item as found in the transportation document (if match_in_ddt is True).",
+    )
+    unita_misura: str | None = Field(
+        default=None,
+        description="Unit of measurement of the item.",
+    )
+
+
+class DeliveryNoteFatturaMatch(BaseModel):
+    ddt_number: str | None = Field(
+        default=None,
+        description="DDT number as found in the transportation document.",
+    )
+    ddt_date: str | None = Field(
+        default=None,
+        description="DDT date as found in the transportation document.",
+    )
+    items: list[DeliveryItemFatturaMatch] | None = None
+
+
 class ImageDescription(BaseModel):
     description: str | None = Field(
         default=None,

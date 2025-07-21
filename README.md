@@ -26,13 +26,7 @@ Bubbola è un tool da riga di comando per l'elaborazione di PDF e immagini. Ecco
 bubbola --help
 
 # Verifica la versione
-bubbola version
-
-# Elabora un PDF
-bubbola sanitize <percorso-pdf>
-
-# Elabora un'immagine
-bubbola process-image <percorso-immagine>
+bubbola version ext
 ```
 
 #### Esempi di Utilizzo
