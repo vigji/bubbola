@@ -78,7 +78,15 @@ def sample_results_dir():
 
 def test_parse_hierarchical_json_general(sample_results_dir):
     """Test the parse_hierarchical_json function with automatic hierarchy detection."""
+    print("--------------------------------")
     level_data, level_names = parse_hierarchical_json(results_dir=sample_results_dir)
+
+    print(sample_results_dir)
+    print(level_data)
+    print(level_names)
+    print("--------------------------------")
+    print(level_data)
+    print(level_names)
 
     # Should return 2 levels: top level and delivery_items level
     assert len(level_data) == 2
@@ -98,3 +106,11 @@ def test_parse_hierarchical_json_general(sample_results_dir):
         assert "main_delivery_date" in item
         assert "file_id" in item
         assert "item_name" in item
+
+
+if __name__ == "__main__":
+    results_dir = Path("temp_dir/results")
+
+    level_data, level_names = parse_hierarchical_json(results_dir=results_dir)
+    print(level_data)
+    print(level_names)

@@ -1,5 +1,4 @@
 import base64
-import json
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -27,7 +26,7 @@ class ImageProcessor:
         self, image_name: str, response_content: str, base64_image: str
     ):
         with open(self.results_dir / f"response_{image_name}.json", "w") as f:
-            json.dump(response_content if response_content else "", f)
+            f.write(response_content)
         with open(self.results_dir / f"response_{image_name}.png", "wb") as f:
             f.write(base64.b64decode(base64_image))
 

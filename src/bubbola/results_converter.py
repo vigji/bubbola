@@ -48,26 +48,25 @@ def parse_hierarchical_json(
         raise FileNotFoundError(
             f"All {FILE_PREFIX}*.json files in {results_dir} are empty. Cannot infer hierarchy."
         )
-    print(first_nonempty_content)
-    content = json.loads(first_nonempty_content)
-    print(content)
-    print("--------------------------------")
-    if isinstance(content, str):
-        content = json.loads(content)
-        hierarchy_fields = []
-        level_names = []
-        current_obj = content
-        while True:
-            fields = infer_hierarchy_fields_from_json(current_obj)
-            if not fields:
-                break
-            hierarchy_fields.append(fields)
-            level_names.append(fields if len(fields) > 1 else fields[0])
-            first_field = fields[0]
-            items = current_obj.get(first_field, [])
-            if not items or not isinstance(items[0], dict):
-                break
-            current_obj = items[0]
+    current_obj = json.loads(first_nonempty_content)
+    # Fix for double encodings:
+    if isinstance(current_obj, str):
+        current_obj = json.loads(current_obj)
+
+    level_names = []
+    hierarchy_fields = []
+
+    while True:
+        fields = infer_hierarchy_fields_from_json(current_obj)
+        if not fields:
+            break
+        hierarchy_fields.append(fields)
+        level_names.append(fields if len(fields) > 1 else fields[0])
+        first_field = fields[0]
+        items = current_obj.get(first_field, [])
+        if not items or not isinstance(items[0], dict):
+            break
+        current_obj = items[0]
 
     flat_level_names = ["main"]
     for names in level_names:
@@ -168,14 +167,12 @@ def parse_hierarchical_json(
 
 
 if __name__ == "__main__":
-    from pprint import pprint
-
     results_dir = Path(
         "/Users/vigji/Desktop/pages_sample-data/concrete_fixed/1502/results/fattura_check_v1_20250722_134952"
     )
 
     print("=== Example: Automatic hierarchy detection ===")
     level_data, level_names = parse_hierarchical_json(results_dir=results_dir)
-    for name, data in zip(level_names[:1], level_data, strict=False):
+    for name, data in zip(level_names, level_data, strict=False):
         print(f"{name}: {len(data)} records")
-        pprint(data)
+        # pprint(data)
