@@ -39,7 +39,9 @@ class ImageProcessor:
         temperature: float | None = None,
         max_retries: int = 5,
         dry_run: bool = False,
+        require_true_fields: list[str] | None = None,
     ) -> TokenCounts:
+        """Process a single image and return token counts. Handles validation via LLMModel."""
         if dry_run:
             return self._process_single_image_dry_run(
                 image_name, base64_image, system_prompt
@@ -48,44 +50,24 @@ class ImageProcessor:
             if self.model.name in ["o3", "o4-mini"]:
                 temperature = 1.0
             else:
-                temperature = 0.0
+                temperature = 0.1
+
         messages = self.model.create_messages(
             instructions=system_prompt, images=[base64_image]
         )
-        for attempt in range(max_retries + 1):
-            try:
-                parsed_response, token_counts = self.model.get_parsed_response(
-                    messages=messages,
-                    pydantic_model=self.pydantic_model,
-                    max_n_retries=0,  # We handle retries here
-                    temperature=temperature,
-                )
-                if parsed_response is not None:
-                    response_content = self.pydantic_model.model_dump_json(
-                        parsed_response
-                    )
-                    self._save_response_files(
-                        image_name, response_content, base64_image
-                    )
-                    return token_counts
-                else:
-                    if attempt < max_retries:
-                        print(
-                            f"Invalid response for {image_name}, attempt {attempt + 1}/{max_retries + 1}. Retrying..."
-                        )
-                    else:
-                        print(
-                            f"Max retries reached for {image_name}. Saving empty response."
-                        )
-                        self._save_response_files(image_name, "", base64_image)
-                        return token_counts
-            except Exception as e:
-                print(
-                    f"API call failed for image '{image_name}' on attempt {attempt + 1}: {e}"
-                )
-                if attempt == max_retries:
-                    self._save_response_files(image_name, "", base64_image)
-                    return TokenCounts(total_input_tokens=0, total_output_tokens=0)
+        parsed_response, token_counts, fully_validated = self.model.get_parsed_response(
+            messages=messages,
+            pydantic_model=self.pydantic_model,
+            max_n_retries=max_retries,
+            temperature=temperature,
+            required_true_fields=require_true_fields,
+        )
+        if parsed_response is not None:
+            response_content = self.pydantic_model.model_dump_json(parsed_response)
+        else:
+            response_content = ""
+        self._save_response_files(image_name, response_content, base64_image)
+        return token_counts
 
     def _process_single_image_dry_run(
         self, image_name: str, base64_image: str, system_prompt: str
@@ -93,7 +75,7 @@ class ImageProcessor:
         messages = self.model.create_messages(
             instructions=system_prompt, images=[base64_image]
         )
-        _, token_counts = self.model.get_parsed_response(
+        _, token_counts, _ = self.model.get_parsed_response(
             messages=messages, pydantic_model=self.pydantic_model, dry_run=True
         )
         cost_estimate = get_cost_estimate(
@@ -131,6 +113,7 @@ class ParallelImageProcessor:
         max_retries: int = 5,
         dry_run: bool = False,
         timeout: int = 300,
+        require_true_fields: list[str] | None = None,
     ) -> AggregatedTokenCounts:
         aggregated_token_counts = AggregatedTokenCounts()
         failed_images = []
@@ -145,6 +128,7 @@ class ParallelImageProcessor:
                     temperature,
                     max_retries,
                     dry_run,
+                    require_true_fields,
                 ): name
                 for name, base64_image in to_process.items()
             }

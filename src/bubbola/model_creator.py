@@ -260,19 +260,21 @@ class LLMModel:
         pydantic_model: BaseModel,
         max_n_retries: int = 5,
         dry_run: bool = False,
+        required_true_fields: list[str] | None = None,
         **kwargs,
-    ) -> tuple[Any, TokenCounts]:
-        """Send messages to model and return parsed response with token counts.
+    ) -> tuple[Any, TokenCounts, bool]:
+        """Send messages to model and return parsed response with token counts and validation flag.
 
         Args:
             messages: List of message dictionaries
             pydantic_model: Pydantic model for response validation
             max_n_retries: Maximum number of retry attempts
             dry_run: If True, estimate tokens without making API calls
+            required_true_fields: List of field names that must be True for full validation
             **kwargs: Additional arguments to pass to the model
 
         Returns:
-            Tuple of (parsed_response, token_counts)
+            Tuple of (parsed_response, token_counts, fully_validated)
         """
         if dry_run:
             # Estimate tokens using the price_estimates module
@@ -286,10 +288,11 @@ class LLMModel:
                 total_output_tokens=estimated_output_tokens,
                 retry_count=0,
             )
-            return None, token_counts
+            return None, token_counts, False
 
-        # Normal execution
         token_counts = TokenCounts(total_input_tokens=0, total_output_tokens=0)
+        last_valid_response = None
+        fully_validated = False
 
         for attempt in range(max_n_retries + 1):
             try:
@@ -297,18 +300,35 @@ class LLMModel:
                     messages, pydantic_model, **kwargs
                 )
                 token_counts.add_attempt(response)
-                response_content = self.parse_response(response, pydantic_model)
-                break
-
+                parsed = self.parse_response(response, pydantic_model)
+                last_valid_response = parsed
+                # Check required_true_fields if provided
+                if required_true_fields:
+                    all_true = all(
+                        getattr(parsed, field, False) for field in required_true_fields
+                    )
+                    if all_true:
+                        fully_validated = True
+                        break
+                    else:
+                        print(
+                            f"Required fields not True: {[field for field in required_true_fields if not getattr(parsed, field, False)]}"
+                        )
+                        if attempt == max_n_retries:
+                            break
+                        continue
+                else:
+                    fully_validated = True
+                    break
             except Exception as e:
                 print(f"API call failed on attempt {attempt + 1}: {e}")
                 if attempt == max_n_retries:
-                    raise e
+                    break
                 if "response" in locals():
                     token_counts.add_attempt(response)
                 continue
 
-        return response_content, token_counts
+        return last_valid_response, token_counts, fully_validated
 
     def get_simple_response(self, messages: list[dict], **kwargs) -> Any:
         """Send messages to model and return raw response.

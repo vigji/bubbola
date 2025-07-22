@@ -1,3 +1,5 @@
+from datetime import date
+
 from pydantic import BaseModel, Field
 
 measurement_unit_description = """
@@ -53,7 +55,15 @@ class DeliveryNote(BaseModel):
 
 
 class DeliveryItemFatturaMatch(BaseModel):
-    match_in_fattura: bool | None = Field(
+    descrizione: str | None = Field(
+        default=None,
+        description="Name of the item.",
+    )
+    numero_linea_invoice: str | None = Field(
+        default=None,
+        description="Number of the line in the invoice.",
+    )
+    match_in_invoice: bool | None = Field(
         default=None,
         description="True if the item is present in the invoice, False otherwise.",
     )
@@ -61,15 +71,7 @@ class DeliveryItemFatturaMatch(BaseModel):
         default=None,
         description="True if the item is present in the transportation document, False otherwise.",
     )
-    descrizione: str | None = Field(
-        default=None,
-        description="Name of the item.",
-    )
-    numero_linea_fattura: str | None = Field(
-        default=None,
-        description="Number of the line in the invoice.",
-    )
-    quantita_in_fattura: float | None = Field(
+    quantita_in_invoice: float | None = Field(
         default=None,
         description="Quantity of the item as found in the invoice (if match_in_fattura is True).",
     )
@@ -86,11 +88,15 @@ class DeliveryItemFatturaMatch(BaseModel):
 class DeliveryNoteFatturaMatch(BaseModel):
     ddt_number: str | None = Field(
         default=None,
-        description="DDT number as found in the transportation document.",
+        description="DDT number, matched to the invoice number (if there is a match, ensure consistency so that this entry can be used as a key in the invoice).",
     )
-    ddt_date: str | None = Field(
+    ddt_date: date | None = Field(
         default=None,
         description="DDT date as found in the transportation document.",
+    )
+    invoice_ddt_match: bool | None = Field(
+        default=None,
+        description="True if the DDT number and date match the invoice number and date, False otherwise.",
     )
     items: list[DeliveryItemFatturaMatch] | None = None
     summary: str | None = Field(

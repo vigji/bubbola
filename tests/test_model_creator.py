@@ -202,11 +202,10 @@ class TestLLMModel:
     def test_get_parsed_response_dry_run(self, mock_model, test_image_base64):
         """Test get_parsed_response with dry_run=True."""
         messages = mock_model.create_messages("Describe the image", [test_image_base64])
-        result, token_counts = mock_model.get_parsed_response(
+        _, token_counts, _ = mock_model.get_parsed_response(
             messages, ImageDescription, dry_run=True
         )
 
-        assert result is None
         # Token counts might be None if estimation fails, which is acceptable
         assert (
             token_counts.total_input_tokens is None

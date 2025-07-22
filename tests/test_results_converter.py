@@ -94,7 +94,7 @@ def test_parse_hierarchical_json_general(sample_results_dir):
 
     # Verify field propagation
     for item in items_level:
-        assert "level0_nome_rag_1" in item
-        assert "level0_delivery_date" in item
+        assert "main_nome_rag_1" in item
+        assert "main_delivery_date" in item
         assert "file_id" in item
         assert "item_name" in item

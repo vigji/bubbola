@@ -472,17 +472,17 @@ if __name__ == "__main__":
     import random
     from pathlib import Path
 
-    from model_creator import get_client_response_function
     from PIL import Image
 
     from bubbola.data_models import DeliveryNote
+    from bubbola.model_creator import get_model_client
 
     output_schema = DeliveryNote.model_json_schema()
 
     est_max_output_tokens = estimate_max_output_tokens_from_schema(output_schema)
     print("estimated max output tokens: ", est_max_output_tokens)
 
-    model_name = "mistralai/mistral-small-3.2-24b-instruct:free"  #  "gpt-4o-mini"  #
+    model_name = "gpt-4o-mini"  # "mistralai/mistral-small-3.2-24b-instruct:free"  #  "gpt-4o-mini"  #
 
     image_long_edge = 248
     # image = Image.open(
@@ -504,35 +504,21 @@ if __name__ == "__main__":
     with open(temp_image_path, "rb") as image_file:
         image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
 
-    response_function = get_client_response_function(model_name)
-
-    actual_prompt_tokens: int | None = None
-
-    # Build the user content with image
-    data_uri = f"data:image/png;base64,{image_base64}"
+    model_client = get_model_client(model_name)
 
     sample_text = "Please describe the contents of the following image:" * 10
     max_tokens = 51
-    # Make the API call
-    resp = response_function(
-        model=model_name,
-        messages=[
-            # {"role": "system", "content": "You are a token counting probe. Respond briefly."},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": sample_text},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": data_uri},
-                    },
-                ],
-            },
-        ],
-        max_completion_tokens=max_tokens,
+
+    # Use the high-level interface for model calls
+    resp, token_counts = model_client.query_with_instructions(
+        instructions=sample_text,
+        images=[image_base64],
+        pydantic_model=DeliveryNote,
+        max_n_retries=0,
+        # max_completion_tokens=max_tokens,
     )
     print("model name: ", model_name)
-    actual_prompt_tokens = resp.usage.prompt_tokens
+    actual_prompt_tokens = token_counts.total_input_tokens
     print("actual prompt tokens: ", actual_prompt_tokens)
 
     est_prompt_tokens = estimate_total_tokens_number(
@@ -543,14 +529,15 @@ if __name__ == "__main__":
     image_tokens = _estimate_image_tokens_number(image.width, image.height, model_name)
     print("image tokens: ", image_tokens)
 
+    # The actual cost estimate uses the actual prompt tokens and the length of the response
     actual_cost_estimate = get_cost_estimate(
-        model_name, actual_prompt_tokens, len(resp.choices[0].message.content.split())
+        model_name, actual_prompt_tokens, len(str(resp).split())
     )
     print("actual cost estimate: ", actual_cost_estimate)
 
     est_cost_estimate = get_cost_estimate(model_name, est_prompt_tokens, max_tokens)
     print("estimated cost estimate: ", est_cost_estimate)
 
-    print(resp.choices[0].message.content)
+    print(resp)
 
     temp_image_path.unlink()

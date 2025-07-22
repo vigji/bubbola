@@ -95,54 +95,55 @@ class BatchProcessor:
         return flows
 
     def get_flow(
-        self, flow_name: str, external_files: dict[str, Path] | None = None
-    ) -> ProcessingFlow | None:
-        """Get a specific processing flow by name."""
-        print("GET FLOW0")
+        self,
+        flow_name: str,
+        external_files: dict[str, Path] | None = None,
+        return_config: bool = False,
+    ) -> Any:
+        """Get a specific processing flow by name. Optionally return the config dict as well."""
         from bubbola.flows import get_flows
 
-        print("GET FLOW")
         flows_dict = get_flows()
-        print(flows_dict)
         # First try exact match by module name
         if flow_name in flows_dict:
             flow_config = flows_dict[flow_name]
             try:
                 # If we have external files, we need to call get_flow() with them
                 if external_files:
-                    print("EXTERNAL FILES")
-                    # Import the module and call get_flow with external files
                     module = __import__(
                         f"bubbola.flows.{flow_name}", fromlist=["get_flow"]
                     )
                     if hasattr(module, "get_flow"):
                         flow_config = module.get_flow(external_files)
-
-                return self._flow_config_to_processing_flow(flow_config, external_files)
+                flow_obj = self._flow_config_to_processing_flow(
+                    flow_config, external_files
+                )
+                if return_config:
+                    return flow_obj, flow_config
+                return flow_obj
             except Exception as e:
                 print(f"Error loading flow {flow_name}: {e}")
-                return None
-
+                return (None, None) if return_config else None
         # Try to find by flow name in the configuration
         for module_name, flow_config in flows_dict.items():
             try:
                 if flow_config.get("name") == flow_name:
-                    # If we have external files, we need to call get_flow() with them
                     if external_files:
                         module = __import__(
                             f"bubbola.flows.{module_name}", fromlist=["get_flow"]
                         )
                         if hasattr(module, "get_flow"):
                             flow_config = module.get_flow(external_files)
-
-                    return self._flow_config_to_processing_flow(
+                    flow_obj = self._flow_config_to_processing_flow(
                         flow_config, external_files
                     )
+                    if return_config:
+                        return flow_obj, flow_config
+                    return flow_obj
             except Exception as e:
                 print(f"Error checking flow {module_name}: {e}")
                 continue
-
-        return None
+        return (None, None) if return_config else None
 
     def process_batch(
         self,
@@ -157,11 +158,13 @@ class BatchProcessor:
         external_files: dict[str, Path] | None = None,
     ) -> int:
         """Process a batch of images using the specified flow."""
-        # Get the processing flow
-        print("PROCESSING BATCH")
-        print(external_files)
-        flow = self.get_flow(flow_name, external_files)
-        print("-----------")
+        # Get the processing flow and config dict
+        result = self.get_flow(flow_name, external_files, return_config=True)
+        if isinstance(result, tuple):
+            flow, flow_config_dict = result
+        else:
+            flow = result
+            flow_config_dict = None
         if not flow:
             print(f"Error: Flow '{flow_name}' not found.")
             print("Available flows:")
@@ -236,6 +239,10 @@ class BatchProcessor:
         start_time = datetime.now()
         processor = ParallelImageProcessor(max_workers=max_workers)
 
+        require_true_fields = None
+        if flow_config_dict is not None:
+            require_true_fields = flow_config_dict.get("require_true_fields")
+
         aggregated_token_counts = processor.process_batch(
             to_process=to_process,
             system_prompt=flow.system_prompt,
@@ -245,6 +252,7 @@ class BatchProcessor:
             max_retries=max_retries,
             timeout=timeout,
             dry_run=dry_run,
+            require_true_fields=require_true_fields,
         )
 
         # In dry run mode, only show cost estimation and exit
@@ -294,6 +302,18 @@ class BatchProcessor:
             "dry_run": dry_run,
             "actual_cost": actual_cost,
         }
+        if flow_config_dict is not None:
+            # Convert any Path objects to str for JSON serialization
+            def _serialize(obj):
+                if isinstance(obj, Path):
+                    return str(obj)
+                if isinstance(obj, dict):
+                    return {k: _serialize(v) for k, v in obj.items()}
+                if isinstance(obj, list):
+                    return [_serialize(x) for x in obj]
+                return obj
+
+            log_data["flow_config"] = _serialize(flow_config_dict)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = output_dir / f"batch_log_{timestamp}.json"
