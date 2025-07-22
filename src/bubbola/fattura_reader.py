@@ -11,7 +11,9 @@ NAMESPACES = {
 }
 
 
-def parse_fattura_elettronica(xml_path: Path) -> dict[str, Any]:
+def parse_fattura_elettronica(
+    xml_path: Path,
+) -> tuple[dict[str, str], list[dict[str, str]]]:
     tree = ET.parse(xml_path)
     root = tree.getroot()
 
@@ -47,7 +49,7 @@ def parse_fattura_elettronica(xml_path: Path) -> dict[str, Any]:
         sconto = ""
         sconto_elem = dettaglio.find("ScontoMaggiorazione/Importo")
         if sconto_elem is not None:
-            sconto = sconto_elem.text
+            sconto = sconto_elem.text or ""
         totale = dettaglio.findtext("PrezzoTotale", default="")
         aliquota = dettaglio.findtext("AliquotaIVA", default="")
         ddt_info = ddt_map.get(numero, {"NumeroDDT": "", "DataDDT": ""})
