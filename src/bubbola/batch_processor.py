@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from bubbola.data_models import DeliveryNote, DeliveryNoteFatturaMatch, ImageDescription
 from bubbola.image_data_loader import sanitize_to_images
 from bubbola.image_processing import ParallelImageProcessor
-from bubbola.results_converter import create_results_csv
+from bubbola.results_converter import parse_hierarchical_json
 
 
 class ProcessingFlow:
@@ -302,9 +302,9 @@ class BatchProcessor:
 
         # Create results CSV
         try:
-            ddts_data, items_data = create_results_csv(output_dir)
-            print(f"DDTs: {len(ddts_data)}")
-            print(f"Items: {len(items_data)}")
+            level_data, level_names = parse_hierarchical_json(results_dir=output_dir)
+            for name, data in zip(level_names, level_data, strict=False):
+                print(f"{name}: {len(data)} records")
         except Exception as e:
             print(f"Warning: Could not create results CSV: {e}")
 

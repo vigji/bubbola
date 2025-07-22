@@ -46,7 +46,7 @@ You have to:
 The final report should be a json with the following structure:
 {DeliveryNoteFatturaMatch.model_json_schema()}
 
-My goal is to find mismatches; you have to be flexible in matching, but accurate in raising any actual mismatch.
+My goal is to find mismatches; you have to be flexible in matching with common sense, but be accurate in raising any actual mismatch.
 
 
 """
@@ -55,7 +55,7 @@ My goal is to find mismatches; you have to be flexible in matching, but accurate
         "name": "fattura_check_v1",
         "data_model": "DeliveryNoteFatturaMatch",
         "system_prompt": system_prompt,
-        "model_name": "gpt-4o-mini",
+        "model_name": "o4-mini",  # "gpt-4o-mini",
         "description": "check a transportation document against an existing fattura elettronica",
         "external_file_options": {
             "fattura": "Path to fattura elettronica file (mandatory)",

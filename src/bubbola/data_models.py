@@ -93,6 +93,10 @@ class DeliveryNoteFatturaMatch(BaseModel):
         description="DDT date as found in the transportation document.",
     )
     items: list[DeliveryItemFatturaMatch] | None = None
+    summary: str | None = Field(
+        default=None,
+        description="A short summary of your reasoning, <100 words>",
+    )  # Summary of your reasoning
 
 
 class ImageDescription(BaseModel):

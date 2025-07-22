@@ -8,7 +8,7 @@ from pathlib import Path
 from bubbola.data_models import DeliveryNote
 from bubbola.image_data_loader import sanitize_to_images
 from bubbola.image_processing import ParallelImageProcessor
-from bubbola.results_converter import create_results_csv
+from bubbola.results_converter import parse_hierarchical_json
 
 # Global lock for thread-safe token counting
 token_lock = threading.Lock()
@@ -236,6 +236,6 @@ if __name__ == "__main__":
 
     print(f"\nAll images processed. Results saved in {results_dir}")
 
-    ddts_data, items_data = create_results_csv(results_dir)
+    ddts_data, items_data = parse_hierarchical_json(results_dir)
     print(f"DDTs: {len(ddts_data)}")
     print(f"Items: {len(items_data)}")

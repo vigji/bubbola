@@ -4,13 +4,22 @@ from pathlib import Path
 from typing import Any
 
 
+def infer_hierarchy_fields_from_json(obj: dict) -> list[str]:
+    """
+    Infer fields that are lists of dicts (i.e., lower hierarchies) from a JSON object.
+    """
+    return [
+        k
+        for k, v in obj.items()
+        if isinstance(v, list) and v and all(isinstance(i, dict) for i in v)
+    ]
+
+
 def parse_hierarchical_json(
     results_dir: Path,
-    hierarchy_config: list[str],
-    schema_fields: set[str] | None = None,
-) -> tuple[list[dict[str, Any]], ...]:
+) -> tuple[list[list[dict[str, Any]]], list[str]]:
     """
-    Parse hierarchical JSON files into multiple CSV levels.
+    Parse hierarchical JSON files into multiple CSV levels, inferring hierarchy automatically.
 
     This function processes JSON files with nested structures and creates separate
     CSV files for each level of the hierarchy. All fields from parent levels are
@@ -18,166 +27,131 @@ def parse_hierarchical_json(
 
     Args:
         results_dir: Path to results directory containing JSON files
-        hierarchy_config: List of field names representing the hierarchy levels
-                         (e.g., ["delivery_items"] for 2-level hierarchy)
-        schema_fields: Set of schema fields to exclude from top-level data
 
     Returns:
-        Tuple of lists, one for each hierarchy level. For a 2-level hierarchy,
-        returns (top_level_data, child_level_data).
-
-    Example:
-        # For DDT -> delivery_items hierarchy:
-        level_data = parse_hierarchical_json(
-            results_dir=Path("results"),
-            hierarchy_config=["delivery_items"]
-        )
-        ddts_data, items_data = level_data
-
-        # For deeper hierarchy (orders -> deliveries -> items):
-        level_data = parse_hierarchical_json(
-            results_dir=Path("results"),
-            hierarchy_config=["deliveries", "items"]
-        )
-        orders_data, deliveries_data, items_data = level_data
+        Tuple of (list of lists of dicts, list of level names). Each list corresponds to a hierarchy level.
     """
-    if schema_fields is None:
-        schema_fields = {"$defs", "properties", "title", "type"}
+    # Find the first JSON file to infer hierarchy
+    FILE_PREFIX = "response_"
+    json_files = sorted(results_dir.glob(f"{FILE_PREFIX}*.json"))
+    if not json_files:
+        raise FileNotFoundError(f"No {FILE_PREFIX}*.json files found in {results_dir}")
+    with open(json_files[0], encoding="utf-8") as f:
+        content = json.load(f)
+        if isinstance(content, str):
+            content = json.loads(content)
+        hierarchy_fields = []
+        level_names = []
+        current_obj = content
+        while True:
+            fields = infer_hierarchy_fields_from_json(current_obj)
+            if not fields:
+                break
+            hierarchy_fields.append(fields)
+            level_names.append(fields if len(fields) > 1 else fields[0])
+            first_field = fields[0]
+            items = current_obj.get(first_field, [])
+            if not items or not isinstance(items[0], dict):
+                break
+            current_obj = items[0]
 
-    # Initialize data structures for each level
-    level_data = [[] for _ in range(len(hierarchy_config) + 1)]
+    flat_level_names = ["main"]
+    for names in level_names:
+        if isinstance(names, list):
+            flat_level_names.extend(names)
+        else:
+            flat_level_names.append(names)
+
+    level_data = [[] for _ in range(len(flat_level_names))]
 
     print(f"Loading from: {results_dir}")
 
-    for json_file in sorted(results_dir.glob("response_*.json")):
+    # Store expected hierarchy fields per level, as inferred from the first document
+    expected_hierarchy_fields = []
+    for fields in hierarchy_fields:
+        expected_hierarchy_fields.append(fields)
+
+    for json_file in json_files:
         with open(json_file, encoding="utf-8") as f:
             try:
                 content = json.load(f)
-                # Handle string JSON content
                 if isinstance(content, str):
                     content = json.loads(content)
+                file_id = json_file.stem.replace(FILE_PREFIX, "")
 
-                # Extract file ID
-                file_id = json_file.stem.replace("response_", "")
+                def process_level(obj, parent_context, level_idx, file_id):
+                    row = {"file_id": file_id}
+                    row.update(parent_context)
+                    for k, v in obj.items():
+                        if not (
+                            isinstance(v, list)
+                            and v
+                            and all(isinstance(i, dict) for i in v)
+                        ):
+                            row[k] = v
+                    # Always set n_{field} for all expected lower hierarchy fields at this level
+                    if level_idx < len(expected_hierarchy_fields):
+                        for field in expected_hierarchy_fields[level_idx]:
+                            items = obj.get(field)
+                            if not (
+                                isinstance(items, list)
+                                and all(isinstance(i, dict) for i in items)
+                            ):
+                                n_items = 0
+                                items = []
+                            else:
+                                n_items = len(items)
+                            row[f"n_{field}"] = n_items
+                            # Only recurse if items is a non-empty list of dicts
+                            for item in items:
+                                child_context = {
+                                    f"{flat_level_names[level_idx]}_{k}": v
+                                    for k, v in row.items()
+                                }
+                                process_level(
+                                    item, child_context, level_idx + 1, file_id
+                                )
+                    level_data[level_idx].append(row)
 
-                # Process each level
-                current_data = content
-                parent_context = {}
-
-                # Top level (level 0)
-                top_level_row = {"file_id": file_id}
-                for key, value in current_data.items():
-                    if key not in hierarchy_config and key not in schema_fields:
-                        top_level_row[key] = value
-                        parent_context[f"level0_{key}"] = value
-
-                # Add count of items in first child level
-                if hierarchy_config:
-                    child_items = current_data.get(hierarchy_config[0]) or []
-                    top_level_row[f"n_{hierarchy_config[0]}"] = len(child_items)
-
-                level_data[0].append(top_level_row)
-
-                # Process child levels
-                for level_idx, child_field in enumerate(hierarchy_config):
-                    child_items = current_data.get(child_field) or []
-
-                    for item in child_items:
-                        item_row = {"file_id": file_id}
-
-                        # Add all parent context
-                        item_row.update(parent_context)
-
-                        # Add all item fields
-                        item_row.update(item)
-
-                        level_data[level_idx + 1].append(item_row)
-
-                    # Update parent context for next level
-                    if level_idx < len(hierarchy_config) - 1:
-                        # For deeper levels, we'd need to handle nested structures
-                        # For now, we'll focus on 2-level hierarchy
-                        break
+                process_level(content, {}, 0, file_id)
 
             except (json.JSONDecodeError, KeyError) as e:
                 print(f"Warning: Could not parse {json_file}: {e}")
                 continue
 
-    # Print summary
     for i, data in enumerate(level_data):
-        level_name = f"level_{i}" if i == 0 else hierarchy_config[i - 1]
-        print(f"Loaded {len(data)} {level_name} records")
+        print(f"Loaded {len(data)} {flat_level_names[i]} records")
 
-    # Export to CSV
     for i, data in enumerate(level_data):
         if data:
-            level_name = f"level_{i}" if i == 0 else hierarchy_config[i - 1]
+            level_name = flat_level_names[i]
             csv_file = results_dir / f"{level_name}_table.csv"
-
+            # Compute union of all keys across all rows
+            all_keys = set()
+            for row in data:
+                all_keys.update(row.keys())
+            fieldnames = list(all_keys)
             with open(csv_file, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=data[0].keys())
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
-                writer.writerows(data)
-
+                for row in data:
+                    # Fill missing keys with empty string
+                    full_row = {k: row.get(k, "") for k in fieldnames}
+                    writer.writerow(full_row)
             print(f"{level_name} exported to: {csv_file}")
 
-    return tuple(level_data)
-
-
-def create_results_csv(
-    results_dir: Path | None = None,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """
-    Load all JSON results and return DDTs and items data.
-
-    This is a wrapper around parse_hierarchical_json for backward compatibility.
-
-    Args:
-        results_dir: Path to results directory. If None, looks for 'results' folder in current directory.
-
-    Returns:
-        tuple: (ddts_data, items_data)
-    """
-    if results_dir is None:
-        raise FileNotFoundError("No results directory found. Please specify the path.")
-
-    # Use the new hierarchical parser with 2-level configuration
-    level_data = parse_hierarchical_json(
-        results_dir=results_dir, hierarchy_config=["delivery_items"]
-    )
-
-    # Return the first two levels for backward compatibility
-    return level_data[0], level_data[1]
+    return level_data, flat_level_names
 
 
 if __name__ == "__main__":
+    from pprint import pprint
+
     results_dir = Path(
-        "/Users/vigji/Desktop/pages_sample-data/concrete/1461/results/test"
+        "/Users/vigji/code/bubbola/tests/results/fattura_check_v1_20250722_095717"
     )
 
-    # Example 1: Using the original function (backward compatibility)
-    print("=== Example 1: Original function ===")
-    ddts_data, items_data = create_results_csv(results_dir)
-
-    # Example 2: Using the new general function with same configuration
-    print("\n=== Example 2: General function with delivery_items hierarchy ===")
-    level_data = parse_hierarchical_json(
-        results_dir=results_dir, hierarchy_config=["delivery_items"]
-    )
-
-    # Example 3: Using custom schema fields
-    print("\n=== Example 3: Custom schema fields ===")
-    custom_schema = {"$defs", "properties", "title", "type", "summary"}
-    level_data_custom = parse_hierarchical_json(
-        results_dir=results_dir,
-        hierarchy_config=["delivery_items"],
-        schema_fields=custom_schema,
-    )
-
-    # Example 4: How to extend for deeper hierarchies (commented out as example)
-    print("\n=== Example 4: For deeper hierarchies ===")
-    print("# For 3-level hierarchy (e.g., orders -> deliveries -> items):")
-    print("# level_data = parse_hierarchical_json(")
-    print("#     results_dir=results_dir,")
-    print("#     hierarchy_config=['deliveries', 'items']")
-    print("# )")
+    print("=== Example: Automatic hierarchy detection ===")
+    level_data, level_names = parse_hierarchical_json(results_dir=results_dir)
+    for name, data in zip(level_names, level_data, strict=False):
+        print(f"{name}: {len(data)} records")
+        pprint(data)

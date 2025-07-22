@@ -184,6 +184,7 @@ class BubbolaApp:
         flow_name = None
         external_files = {}
         auto_confirm = False
+        debug = False
 
         i = 0
         print(args)
@@ -206,6 +207,9 @@ class BubbolaApp:
                 i += 2
             elif args[i] in ["--yes", "-y"]:
                 auto_confirm = True
+                i += 1
+            elif args[i] == "--debug":
+                debug = True
                 i += 1
             else:
                 print(f"Errore: Argomento sconosciuto: {args[i]}")
@@ -274,4 +278,8 @@ class BubbolaApp:
 
         except Exception as e:
             print(f"Errore durante l'elaborazione: {e}")
+            if debug:
+                import traceback
+
+                traceback.print_exc()
             return 1

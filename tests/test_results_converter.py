@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from bubbola.results_converter import create_results_csv, parse_hierarchical_json
+from bubbola.results_converter import parse_hierarchical_json
 
 
 @pytest.fixture
@@ -76,62 +76,13 @@ def sample_results_dir():
         yield results_dir
 
 
-def test_create_results_csv(sample_results_dir):
-    """Test the create_results_csv function with sample hierarchical data."""
-    ddts_data, items_data = create_results_csv(sample_results_dir)
-
-    # Check DDT level data
-    assert len(ddts_data) == 2
-
-    # Check first DDT
-    ddt1 = ddts_data[0]
-    assert ddt1["file_id"] == "file1"
-    assert ddt1["nome_rag_1"] == "Supplier A"
-    assert ddt1["ddt_number"] == "DDT001"
-    assert ddt1["n_delivery_items"] == 2
-
-    # Check second DDT
-    ddt2 = ddts_data[1]
-    assert ddt2["file_id"] == "file2"
-    assert ddt2["nome_rag_1"] == "Supplier B"
-    assert ddt2["ddt_number"] == "DDT002"
-    assert ddt2["n_delivery_items"] == 1
-
-    # Check items level data
-    assert len(items_data) == 3  # 2 + 1 items
-
-    # Check items from first file
-    file1_items = [item for item in items_data if item["file_id"] == "file1"]
-    assert len(file1_items) == 2
-
-    # Check first item from file1
-    item1 = file1_items[0]
-    assert item1["file_id"] == "file1"
-    assert item1["level0_nome_rag_1"] == "Supplier A"
-    assert item1["level0_delivery_date"] == "2024-01-15"
-    assert item1["item_name"] == "Concrete Type A"
-    assert item1["item_quantity"] == 10.5
-
-    # Check items from second file
-    file2_items = [item for item in items_data if item["file_id"] == "file2"]
-    assert len(file2_items) == 1
-
-    # Check CSV files were created
-    level0_csv = sample_results_dir / "level_0_table.csv"
-    delivery_items_csv = sample_results_dir / "delivery_items_table.csv"
-    assert level0_csv.exists()
-    assert delivery_items_csv.exists()
-
-
 def test_parse_hierarchical_json_general(sample_results_dir):
-    """Test the new parse_hierarchical_json function with custom hierarchy."""
-    # Test with the same configuration as create_results_csv
-    level_data = parse_hierarchical_json(
-        results_dir=sample_results_dir, hierarchy_config=["delivery_items"]
-    )
+    """Test the parse_hierarchical_json function with automatic hierarchy detection."""
+    level_data, level_names = parse_hierarchical_json(results_dir=sample_results_dir)
 
     # Should return 2 levels: top level and delivery_items level
     assert len(level_data) == 2
+    assert len(level_names) == 2
 
     # Check top level (level 0)
     top_level = level_data[0]
@@ -147,32 +98,3 @@ def test_parse_hierarchical_json_general(sample_results_dir):
         assert "level0_delivery_date" in item
         assert "file_id" in item
         assert "item_name" in item
-
-
-def test_parse_hierarchical_json_custom_schema_fields(sample_results_dir):
-    """Test parse_hierarchical_json with custom schema fields."""
-    custom_schema = {"$defs", "properties", "title", "type", "summary"}
-
-    level_data = parse_hierarchical_json(
-        results_dir=sample_results_dir,
-        hierarchy_config=["delivery_items"],
-        schema_fields=custom_schema,
-    )
-
-    # Check that summary field is excluded from top level
-    top_level = level_data[0]
-    for record in top_level:
-        assert "summary" not in record
-        assert "nome_rag_1" in record  # Should still be included
-
-
-def test_create_results_csv_empty_directory():
-    """Test behavior with empty results directory."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        results_dir = Path(temp_dir) / "results"
-        results_dir.mkdir()
-
-        ddts_data, items_data = create_results_csv(results_dir)
-
-        assert ddts_data == []
-        assert items_data == []
