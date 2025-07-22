@@ -167,7 +167,7 @@ class TestLLMModel:
     def test_query_with_instructions_dry_run(self, mock_model, test_image_base64):
         """Test query_with_instructions with dry_run=True."""
         instructions = "Describe the image briefly."
-        result, token_counts = mock_model.query_with_instructions(
+        result, token_counts, _ = mock_model.query_with_instructions(
             instructions=instructions,
             images=[test_image_base64],
             pydantic_model=ImageDescription,
@@ -254,7 +254,7 @@ class TestIntegration:
         assert messages[1]["role"] == "user"
 
         # Test dry run functionality
-        result, token_counts = model.query_with_instructions(
+        result, token_counts, _ = model.query_with_instructions(
             instructions=instructions,
             images=[test_image_base64],
             pydantic_model=ImageDescription,
@@ -309,7 +309,7 @@ class TestIntegration:
                 # First, do a dry run to estimate costs
                 print(f"  Estimating tokens for {model_name}...")
                 try:
-                    _, token_counts = model.query_with_instructions(
+                    _, token_counts, _ = model.query_with_instructions(
                         instructions=simple_instructions,
                         images=[test_image_base64],
                         pydantic_model=ImageDescription,
@@ -341,7 +341,7 @@ class TestIntegration:
                     if not model.use_new_responses_api:
                         kwargs["max_tokens"] = 50  # Only for legacy API
 
-                    result, actual_token_counts = model.query_with_instructions(
+                    result, actual_token_counts, _ = model.query_with_instructions(
                         instructions=simple_instructions,
                         images=[test_image_base64],
                         pydantic_model=ImageDescription,

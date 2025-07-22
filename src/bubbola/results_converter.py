@@ -36,10 +36,24 @@ def parse_hierarchical_json(
     json_files = sorted(results_dir.glob(f"{FILE_PREFIX}*.json"))
     if not json_files:
         raise FileNotFoundError(f"No {FILE_PREFIX}*.json files found in {results_dir}")
-    with open(json_files[0], encoding="utf-8") as f:
-        content = json.load(f)
-        if isinstance(content, str):
-            content = json.loads(content)
+    # Find the first non-empty JSON file
+    first_nonempty_content = None
+    for json_file in json_files:
+        with open(json_file, encoding="utf-8") as f:
+            raw_content = f.read()
+            if raw_content.strip() and len(raw_content) > 2:
+                first_nonempty_content = raw_content
+                break
+    if first_nonempty_content is None:
+        raise FileNotFoundError(
+            f"All {FILE_PREFIX}*.json files in {results_dir} are empty. Cannot infer hierarchy."
+        )
+    print(first_nonempty_content)
+    content = json.loads(first_nonempty_content)
+    print(content)
+    print("--------------------------------")
+    if isinstance(content, str):
+        content = json.loads(content)
         hierarchy_fields = []
         level_names = []
         current_obj = content
@@ -73,51 +87,61 @@ def parse_hierarchical_json(
 
     for json_file in json_files:
         with open(json_file, encoding="utf-8") as f:
+            raw_content = f.read()
+            file_id = json_file.stem.replace(FILE_PREFIX, "")
+            if not raw_content.strip() or len(raw_content) < 2:
+                # Empty file: add a row with only file_id
+                level_data[0].append({"file_id": file_id})
+                print(
+                    f"Warning: {json_file} is empty. Added empty row for file_id {file_id}."
+                )
+                continue
             try:
-                content = json.load(f)
+                content = json.loads(raw_content)
                 if isinstance(content, str):
                     content = json.loads(content)
-                file_id = json_file.stem.replace(FILE_PREFIX, "")
 
-                def process_level(obj, parent_context, level_idx, file_id):
-                    row = {"file_id": file_id}
-                    row.update(parent_context)
-                    for k, v in obj.items():
-                        if not (
-                            isinstance(v, list)
-                            and v
-                            and all(isinstance(i, dict) for i in v)
-                        ):
-                            row[k] = v
-                    # Always set n_{field} for all expected lower hierarchy fields at this level
-                    if level_idx < len(expected_hierarchy_fields):
-                        for field in expected_hierarchy_fields[level_idx]:
-                            items = obj.get(field)
-                            if not (
-                                isinstance(items, list)
-                                and all(isinstance(i, dict) for i in items)
-                            ):
-                                n_items = 0
-                                items = []
-                            else:
-                                n_items = len(items)
-                            row[f"n_{field}"] = n_items
-                            # Only recurse if items is a non-empty list of dicts
-                            for item in items:
-                                child_context = {
-                                    f"{flat_level_names[level_idx]}_{k}": v
-                                    for k, v in row.items()
-                                }
-                                process_level(
-                                    item, child_context, level_idx + 1, file_id
-                                )
-                    level_data[level_idx].append(row)
-
-                process_level(content, {}, 0, file_id)
-
-            except (json.JSONDecodeError, KeyError) as e:
-                print(f"Warning: Could not parse {json_file}: {e}")
+            except Exception as e:
+                # Failed to parse: treat as empty
+                level_data[0].append({"file_id": file_id})
+                print(
+                    f"Warning: Could not parse {json_file}: {e}. Added empty row for file_id {file_id}."
+                )
                 continue
+
+            def process_level(obj, parent_context, level_idx, file_id):
+                row = {"file_id": file_id}
+                row.update(parent_context)
+                for k, v in obj.items():
+                    if not (
+                        isinstance(v, list)
+                        and v
+                        and all(isinstance(i, dict) for i in v)
+                    ):
+                        row[k] = v
+                # Always set n_{field} for all expected lower hierarchy fields at this level
+                if level_idx < len(expected_hierarchy_fields):
+                    for field in expected_hierarchy_fields[level_idx]:
+                        items = obj.get(field)
+                        if not (
+                            isinstance(items, list)
+                            and all(isinstance(i, dict) for i in items)
+                        ):
+                            n_items = 0
+                            items = []
+                        else:
+                            n_items = len(items)
+                        row[f"n_{field}"] = n_items
+                        # Only recurse if items is a non-empty list of dicts
+                        for item in items:
+                            child_context = {
+                                f"{flat_level_names[level_idx]}_{k}": v
+                                for k, v in row.items()
+                            }
+                            process_level(item, child_context, level_idx + 1, file_id)
+                level_data[level_idx].append(row)
+
+            process_level(content, {}, 0, file_id)
 
     for i, data in enumerate(level_data):
         print(f"Loaded {len(data)} {flat_level_names[i]} records")
@@ -147,11 +171,11 @@ if __name__ == "__main__":
     from pprint import pprint
 
     results_dir = Path(
-        "/Users/vigji/code/bubbola/tests/results/fattura_check_v1_20250722_095717"
+        "/Users/vigji/Desktop/pages_sample-data/concrete_fixed/1502/results/fattura_check_v1_20250722_134952"
     )
 
     print("=== Example: Automatic hierarchy detection ===")
     level_data, level_names = parse_hierarchical_json(results_dir=results_dir)
-    for name, data in zip(level_names, level_data, strict=False):
+    for name, data in zip(level_names[:1], level_data, strict=False):
         print(f"{name}: {len(data)} records")
         pprint(data)
