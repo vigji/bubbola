@@ -21,6 +21,8 @@ def parse_hierarchical_json(
     """
     Parse hierarchical JSON files into multiple CSV levels, inferring hierarchy automatically.
 
+    #TODO this function is a bit of a mess and could help some refactoring
+
     This function processes JSON files with nested structures and creates separate
     CSV files for each level of the hierarchy. All fields from parent levels are
     propagated to child levels with appropriate prefixes.

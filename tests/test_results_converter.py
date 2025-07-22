@@ -66,12 +66,17 @@ def sample_results_dir():
             ],
         }
 
+        sample_data_3 = {}
+
         # Write sample JSON files
         with open(results_dir / "response_file1.json", "w") as f:
             json.dump(sample_data_1, f)
 
         with open(results_dir / "response_file2.json", "w") as f:
             json.dump(sample_data_2, f)
+
+        with open(results_dir / "response_file3.json", "w") as f:
+            json.dump(sample_data_3, f)
 
         yield results_dir
 
@@ -94,7 +99,7 @@ def test_parse_hierarchical_json_general(sample_results_dir):
 
     # Check top level (level 0)
     top_level = level_data[0]
-    assert len(top_level) == 2
+    assert len(top_level) == 3
 
     # Check delivery_items level (level 1)
     items_level = level_data[1]

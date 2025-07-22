@@ -106,7 +106,7 @@ class BubbolaApp:
             from bubbola.image_data_loader import save_sanitized_images
 
             output_path = save_sanitized_images(input_path, destination, max_edge_size)
-            print(f"Immagini sanitizzate salvate in: {output_path}")
+            print(f"Immagini sanitizzate salvate in: {output_path.as_posix()}")
             return 0
         except Exception as e:
             print(f"Errore durante la sanitizzazione: {e}")
