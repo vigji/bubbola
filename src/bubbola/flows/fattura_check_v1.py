@@ -66,16 +66,17 @@ Be rigorous: minor typos in descriptions may match, but numerical fields must be
         "name": "fattura_check_v1",
         "data_model": "DeliveryNoteFatturaMatch",
         "system_prompt": system_prompt,
-        "model_name": "o4-mini",  # "anthropic/claude-3.7-sonnet:thinking",  #"gpt-4.1-nano", #"gpt-4.1-nano", # "google/gemini-2.5-flash-lite",  # "meta-llama/llama-4-maverick",  # "moonshotai/kimi-vl-a3b-thinking:free", # "google/gemma-3-27b-it:free",# "mistralai/mistral-small-3.2-24b-instruct:free",  #"o4-mini",  # "gpt-4o", # "o4-mini",  # "gpt-4o-mini",
+        "model_name": "o3",
         "description": "check a transportation document against an existing fattura elettronica",
         "external_file_options": {
             "fattura": "Path to fattura elettronica file (mandatory)",
         },
-        "model_kwargs": {},
+        "model_kwargs": {"reasoning": {"effort": "low"}},
         "parser_kwargs": {
-            "max_n_retries": 5,
-            "require_true_fields": ["invoice_ddt_match", "all_items_in_ddt"],
+            "max_n_retries": 1,
+            "require_true_fields": [],  # "invoice_ddt_match", "all_items_in_ddt"],
         },
+        "max_edge_size": 512,
     }
 
 

@@ -466,6 +466,7 @@ MODEL_NAME_TO_CLASS_MAP = {
     "gpt-4o-mini": OpenAIModel,
     "o3": OpenAIModel,
     "o4-mini": OpenAIModel,
+    "o3-mini": OpenAIModel,
     "gpt-4.1-nano": OpenAIModel,
     # Mock
     "mock": MockModel,

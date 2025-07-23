@@ -223,10 +223,15 @@ class BatchProcessor:
                 if f.is_file() and f.suffix.lower() in supported_extensions
             ]
 
+        # Extract max_edge_size from flow config, with fallback to parameter
+        flow_max_edge_size = max_edge_size
+        if flow_config_dict is not None:
+            flow_max_edge_size = flow_config_dict.get("max_edge_size", max_edge_size)
+
         to_process = sanitize_to_images(
             files_to_process,
             return_as_base64=True,
-            max_edge_size=max_edge_size,
+            max_edge_size=flow_max_edge_size,
         )
 
         if not to_process:

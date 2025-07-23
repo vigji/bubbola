@@ -6,4 +6,5 @@ flow = {
     "external_file_options": {},
     "model_kwargs": {},
     "parser_kwargs": {},
+    "max_edge_size": 1000,
 }

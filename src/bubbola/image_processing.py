@@ -47,14 +47,22 @@ class ImageProcessor:
                 image_name, base64_image, system_prompt
             )
 
+        # Extract parser-specific arguments
+        max_n_retries = parser_kwargs.pop("max_n_retries", 5)
+        required_true_fields = parser_kwargs.pop("require_true_fields", None)
+
+        # Any remaining parser_kwargs should be model arguments
+        model_kwargs.update(parser_kwargs)
+
         messages = self.model.create_messages(
             instructions=system_prompt, images=[base64_image]
         )
         parsed_response, token_counts, fully_validated = self.model.get_parsed_response(
             messages=messages,
             pydantic_model=self.pydantic_model,
+            max_n_retries=max_n_retries,
+            required_true_fields=required_true_fields,
             dry_run=False,
-            **parser_kwargs,
             **model_kwargs,
         )
         if parsed_response is not None:
