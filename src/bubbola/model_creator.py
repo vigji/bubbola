@@ -95,7 +95,7 @@ class APIInterface(ABC):
 class LegacyAPI(APIInterface):
     """Legacy OpenAI-style API interface."""
 
-    def format_image_message(self, image_base64: str) -> dict[str, Any]:
+    def format_image_message(self, image_base64: str) -> dict[str, Any]:  # type: ignore[override]
         """Format image for legacy API."""
         return super().format_image_message(image_base64, use_new_api=False)
 
@@ -151,7 +151,7 @@ class LegacyAPI(APIInterface):
 class NewResponsesAPI(APIInterface):
     """New OpenAI responses API interface."""
 
-    def format_image_message(self, image_base64: str) -> dict[str, Any]:
+    def format_image_message(self, image_base64: str) -> dict[str, Any]:  # type: ignore[override]
         """Format image for new responses API."""
         return super().format_image_message(image_base64, use_new_api=True)
 

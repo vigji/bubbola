@@ -2,13 +2,14 @@
 
 from typing import Any
 
+from bubbola.flows import small_parsing
+
 # Explicit imports for PyInstaller compatibility
 try:
     from bubbola.flows import (
         fattura_check_v1,
         lg_concrete_v1,
         lg_concrete_v1_test,
-        small_test,
     )
 except ImportError:
     # Fallback for development
@@ -31,7 +32,7 @@ def _discover_flows() -> dict[str, Any]:
     flow_modules = {
         "lg_concrete_v1": lg_concrete_v1,
         "lg_concrete_v1_test": lg_concrete_v1_test,
-        "small_test": small_test,
+        "small_test": small_parsing,
         "fattura_check_v1": fattura_check_v1,
     }
 

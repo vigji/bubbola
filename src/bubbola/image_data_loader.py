@@ -351,6 +351,8 @@ def sanitize_to_images(
     pdf_converter = PDFConverter(cache_manager)
     image_loader = ImageLoader(pdf_converter, max_edge_size)
 
+    # Choose appropriate loader based on return type, make the annotation explicit for mypy
+    loader: ImageLoader | Base64ImageLoader
     if return_as_base64:
         loader = Base64ImageLoader(image_loader)
     else:

@@ -197,7 +197,7 @@ def _estimate_image_tokens_number(
         # 1 patch = 32×32px
         patches_x = math.ceil(width / 32)
         patches_y = math.ceil(height / 32)
-        tokens = patches_x * patches_y
+        tokens: float = float(patches_x * patches_y)
 
         # if over budget, scale down to max 1536 patches
         if tokens > 1536:

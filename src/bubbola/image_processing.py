@@ -5,7 +5,6 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from bubbola.data_models import DeliveryNote
 from bubbola.model_creator import get_model_client
 from bubbola.price_estimates import (
     AggregatedTokenCounts,
@@ -66,7 +65,7 @@ class ImageProcessor:
             **model_kwargs,
         )
         if parsed_response is not None:
-            response_content = self.pydantic_model.model_dump_json(parsed_response)
+            response_content = parsed_response.model_dump_json()
         else:
             response_content = ""
         self._save_response_files(image_name, response_content, base64_image)
@@ -189,47 +188,3 @@ class ParallelImageProcessor:
             else:
                 print(f"Total cost estimate: Not available for model {model_name}")
         return aggregated_token_counts
-
-
-if __name__ == "__main__":
-    import tempfile
-
-    from bubbola.image_data_loader import sanitize_to_images
-    from scripts.main import system_prompt
-
-    image_path = "/Users/vigji/code/bubbola/tests/assets/single_pages/0088_001_001.png"
-    model_name = "gpt-4o"
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        results_dir = Path(temp_dir)
-        base64_image = sanitize_to_images(image_path, return_as_base64=True)
-        image_name, image = next(iter(base64_image.items()))
-        print(image_name)
-        processor = ImageProcessor(model_name, DeliveryNote, results_dir)
-        token_counts = processor.process_single_image(
-            image_name=image_name,
-            base64_image=image,
-            system_prompt=system_prompt,
-            dry_run=False,
-        )
-        print(
-            f"Processed {image_name} with {token_counts.total_input_tokens} input tokens and {token_counts.total_output_tokens} output tokens"
-        )
-
-    # test parallel processing
-    multipage_docs = [
-        "/Users/vigji/code/bubbola/tests/assets/0088_001.pdf",
-        "/Users/vigji/code/bubbola/tests/assets/0089_001.pdf",
-    ]
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        results_dir = Path(temp_dir)
-        base64_images = sanitize_to_images(multipage_docs, return_as_base64=True)
-        processor = ParallelImageProcessor(max_workers=10)
-        token_counts = processor.process_batch(
-            to_process=base64_images,
-            system_prompt=system_prompt,
-            model_name=model_name,
-            pydantic_model=DeliveryNote,
-            results_dir=results_dir,
-        )

@@ -108,7 +108,7 @@ def get_env(key: str, default: str | None = None) -> str | None:
     # Load config file only if environment variable is not set
     if not hasattr(get_env, "_loaded"):
         load_config()
-        get_env._loaded = True
+        get_env._loaded = True  # type: ignore[attr-defined]
 
     return os.getenv(key, default)
 

@@ -50,6 +50,9 @@ where = ["src"]
 [tool.ruff]
 target-version = "py311"
 line-length = 88
+exclude = [
+    "scripts/",
+]
 
 [tool.ruff.lint]
 select = [
@@ -93,18 +96,14 @@ strict_equality = false
 ignore_missing_imports = true
 allow_redefinition = true
 allow_untyped_globals = true
+explicit_package_bases = true
+exclude = [
+    "scripts/",
+    "scripts/.*",
+]
 
 [[tool.mypy.overrides]]
-module = [
-    "bubbola.results_converter",
-    "bubbola.image_data_loader", 
-    "bubbola.config",
-    "bubbola.price_estimates",
-    "bubbola.model_creator",
-    "bubbola.image_processing",
-    "bubbola.batch_processor",
-    "scripts.main"
-]
+module = "scripts.*"
 ignore_errors = true
 
 [tool.pytest.ini_options]

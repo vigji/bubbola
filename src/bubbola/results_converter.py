@@ -55,7 +55,7 @@ def parse_hierarchical_json(
     if isinstance(current_obj, str):
         current_obj = json.loads(current_obj)
 
-    level_names = []
+    level_names: list[str | list[str]] = []
     hierarchy_fields = []
 
     while True:
@@ -63,6 +63,7 @@ def parse_hierarchical_json(
         if not fields:
             break
         hierarchy_fields.append(fields)
+        # mypy: fields can be either list[str] or str; we store both
         level_names.append(fields if len(fields) > 1 else fields[0])
         first_field = fields[0]
         items = current_obj.get(first_field, [])
@@ -77,7 +78,7 @@ def parse_hierarchical_json(
         else:
             flat_level_names.append(names)
 
-    level_data = [[] for _ in range(len(flat_level_names))]
+    level_data: list[list[dict[str, Any]]] = [[] for _ in range(len(flat_level_names))]
 
     print(f"Loading from: {results_dir}")
 
@@ -152,7 +153,7 @@ def parse_hierarchical_json(
             level_name = flat_level_names[i]
             csv_file = results_dir / f"{level_name}_table.csv"
             # Compute union of all keys across all rows
-            all_keys = set()
+            all_keys: set[str] = set()
             for row in data:
                 all_keys.update(row.keys())
             fieldnames = list(all_keys)
