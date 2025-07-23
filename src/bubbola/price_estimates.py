@@ -15,6 +15,7 @@ MODEL_PRICES_PER_M_TOKEN = {
     "gpt-4o": {"in": 2.5, "out": 10.0},
     "gpt-4.1": {"in": 2.00, "out": 8.00},
     "o4-mini": {"in": 1.1, "out": 4.40},
+    "gpt-4.1-nano": {"in": 0.1, "out": 0.4},
     "o3": {"in": 2, "out": 8},
     "mistralai/mistral-small-3.2-24b-instruct:free": {"in": 0.0, "out": 0.0},
 }

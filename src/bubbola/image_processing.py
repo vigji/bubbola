@@ -35,7 +35,7 @@ class ImageProcessor:
         image_name: str,
         base64_image: str,
         system_prompt: str,
-        temperature: float | None = None,
+        temperature: float | None = 0.1,
         max_retries: int = 5,
         dry_run: bool = False,
         require_true_fields: list[str] | None = None,
@@ -45,11 +45,17 @@ class ImageProcessor:
             return self._process_single_image_dry_run(
                 image_name, base64_image, system_prompt
             )
-        if temperature is None:
-            if self.model.name in ["o3", "o4-mini"]:
-                temperature = 1.0
-            else:
-                temperature = 0.1
+
+        kwargs = {}
+        if self.model.name in ["o3", "o4-mini"]:
+            kwargs["reasoning"] = {
+                "effort": "medium",
+                # "summary": "auto"
+            }
+
+        # kwargs["temperature"] = 1.0
+        else:
+            kwargs["temperature"] = temperature
 
         messages = self.model.create_messages(
             instructions=system_prompt, images=[base64_image]
@@ -58,8 +64,8 @@ class ImageProcessor:
             messages=messages,
             pydantic_model=self.pydantic_model,
             max_n_retries=max_retries,
-            temperature=temperature,
             required_true_fields=require_true_fields,
+            **kwargs,
         )
         if parsed_response is not None:
             response_content = self.pydantic_model.model_dump_json(parsed_response)

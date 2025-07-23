@@ -450,9 +450,15 @@ MODEL_NAME_TO_CLASS_MAP = {
     # OpenRouter models
     "meta-llama/llama-4-scout": OpenRouterModel,
     "meta-llama/llama-4-maverick": OpenRouterModel,
-    # "google/gemma-3-27b-it:free": OpenRouterModel,
-    # "anthropic/claude-3-haiku:beta": OpenRouterModel,
+    "google/gemma-3-27b-it:free": OpenRouterModel,
+    "moonshotai/kimi-vl-a3b-thinking:free": OpenRouterModel,
+    "qwen/qwen2.5-vl-72b-instruct:free": OpenRouterModel,
     "mistralai/mistral-small-3.2-24b-instruct:free": OpenRouterModel,
+    "google/gemini-2.5-flash-lite": OpenRouterModel,
+    "minimax/minimax-01": OpenRouterModel,
+    "mistralai/mistral-medium-3": OpenRouterModel,
+    "microsoft/phi-4-multimodal-instruct": OpenRouterModel,
+    "anthropic/claude-3.7-sonnet:thinking": OpenRouterModel,
     # Local models
     "gemma3:12b": LocalModel,
     # OpenAI models
@@ -460,6 +466,7 @@ MODEL_NAME_TO_CLASS_MAP = {
     "gpt-4o-mini": OpenAIModel,
     "o3": OpenAIModel,
     "o4-mini": OpenAIModel,
+    "gpt-4.1-nano": OpenAIModel,
     # Mock
     "mock": MockModel,
 }

@@ -44,9 +44,15 @@ The invoice of possible items is:
 {linee_csv}
 
 You have to:
-1. find a match in the transportation DDT number and date against the invoice. If you do find a match, ensure fields consistency: the ddt number should be the complete number you find in the invoice, including puntuation-separated parts. If you do not find a match, still list the DDT number and date that you find but set the match field to false.
-2. If you find a match, go through all the items listed for this invoice and check if the items are present in the transportation document, and fill the output json with with the data you find in the transportation document, comparing items from the invoice.
-3. If you do not find a match, still list the items that you find in the DDT, and fill the output json with the data you find in the transportation document.
+1. find a match in the transportation DDT number and date against the invoice. If you do find a match,  If you do not find a match, still list the DDT number and date that you find but set the match field to false.
+2. If you find a match:
+  - ensure fields consistency: the ddt number should be the complete number you find in the invoice, including puntuation-separated parts.
+  - go through all the items listed in the invoice *FOR THIS DDT ONLY* and check if the items are present in the transportation document,
+  - and fill the output json with with the data you find in the transportation document, comparing items from the invoice.
+  - Fill the "all_items_in_ddt" as True only if all items from the invoice are present in the DDT (should be True even if there are more items in the DDT than in the invoice).
+3. If you do not find a match:
+  - still list the items that you find in the DDT, and fill the output json with the data you find in the transportation document.
+
 4. Report your reasoning in the "summary" field.
 
 The final report should be a json with the following structure:
@@ -60,12 +66,12 @@ Be rigorous: minor typos in descriptions may match, but numerical fields must be
         "name": "fattura_check_v1",
         "data_model": "DeliveryNoteFatturaMatch",
         "system_prompt": system_prompt,
-        "model_name": "o4-mini",  # "gpt-4o", # "o4-mini",  # "gpt-4o-mini",
+        "model_name": "o4-mini",  # "anthropic/claude-3.7-sonnet:thinking",  #"gpt-4.1-nano", #"gpt-4.1-nano", # "google/gemini-2.5-flash-lite",  # "meta-llama/llama-4-maverick",  # "moonshotai/kimi-vl-a3b-thinking:free", # "google/gemma-3-27b-it:free",# "mistralai/mistral-small-3.2-24b-instruct:free",  #"o4-mini",  # "gpt-4o", # "o4-mini",  # "gpt-4o-mini",
         "description": "check a transportation document against an existing fattura elettronica",
         "external_file_options": {
             "fattura": "Path to fattura elettronica file (mandatory)",
         },
-        "require_true_fields": ["invoice_ddt_match"],
+        "require_true_fields": ["invoice_ddt_match", "all_items_in_ddt"],
     }
 
 

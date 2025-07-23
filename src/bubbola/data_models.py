@@ -98,6 +98,10 @@ class DeliveryNoteFatturaMatch(BaseModel):
         default=None,
         description="True if the DDT number and date match the invoice number and date, False otherwise.",
     )
+    all_items_in_ddt: bool | None = Field(
+        default=None,
+        description="True if all items from the invoice are present in the DDT, False otherwise.",
+    )
     items: list[DeliveryItemFatturaMatch] | None = None
     summary: str | None = Field(
         default=None,
