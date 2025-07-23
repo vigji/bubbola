@@ -71,7 +71,11 @@ Be rigorous: minor typos in descriptions may match, but numerical fields must be
         "external_file_options": {
             "fattura": "Path to fattura elettronica file (mandatory)",
         },
-        "require_true_fields": ["invoice_ddt_match", "all_items_in_ddt"],
+        "model_kwargs": {},
+        "parser_kwargs": {
+            "max_n_retries": 5,
+            "require_true_fields": ["invoice_ddt_match", "all_items_in_ddt"],
+        },
     }
 
 

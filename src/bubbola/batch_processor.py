@@ -239,9 +239,21 @@ class BatchProcessor:
         start_time = datetime.now()
         processor = ParallelImageProcessor(max_workers=max_workers)
 
-        require_true_fields = None
+        # Extract model_kwargs and parser_kwargs from flow config, with defaults
+        model_kwargs = {}
+        parser_kwargs = {}
         if flow_config_dict is not None:
-            require_true_fields = flow_config_dict.get("require_true_fields")
+            model_kwargs = flow_config_dict.get("model_kwargs", {})
+            parser_kwargs = flow_config_dict.get("parser_kwargs", {})
+        # For backward compatibility, allow max_retries and require_true_fields at top level
+        if not parser_kwargs:
+            if flow_config_dict is not None:
+                if "max_retries" in flow_config_dict:
+                    parser_kwargs["max_n_retries"] = flow_config_dict["max_retries"]
+                if "require_true_fields" in flow_config_dict:
+                    parser_kwargs["require_true_fields"] = flow_config_dict[
+                        "require_true_fields"
+                    ]
 
         aggregated_token_counts = processor.process_batch(
             to_process=to_process,
@@ -249,10 +261,10 @@ class BatchProcessor:
             model_name=flow.model_name,
             pydantic_model=flow.data_model,
             results_dir=output_dir,
-            max_retries=max_retries,
+            model_kwargs=model_kwargs,
+            parser_kwargs=parser_kwargs,
             timeout=timeout,
             dry_run=dry_run,
-            require_true_fields=require_true_fields,
         )
 
         # In dry run mode, only show cost estimation and exit

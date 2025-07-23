@@ -35,27 +35,17 @@ class ImageProcessor:
         image_name: str,
         base64_image: str,
         system_prompt: str,
-        temperature: float | None = 0.1,
-        max_retries: int = 5,
+        model_kwargs: dict | None = None,
+        parser_kwargs: dict | None = None,
         dry_run: bool = False,
-        require_true_fields: list[str] | None = None,
     ) -> TokenCounts:
         """Process a single image and return token counts. Handles validation via LLMModel."""
+        model_kwargs = model_kwargs or {}
+        parser_kwargs = parser_kwargs or {}
         if dry_run:
             return self._process_single_image_dry_run(
                 image_name, base64_image, system_prompt
             )
-
-        kwargs = {}
-        if self.model.name in ["o3", "o4-mini"]:
-            kwargs["reasoning"] = {
-                "effort": "medium",
-                # "summary": "auto"
-            }
-
-        # kwargs["temperature"] = 1.0
-        else:
-            kwargs["temperature"] = temperature
 
         messages = self.model.create_messages(
             instructions=system_prompt, images=[base64_image]
@@ -63,9 +53,9 @@ class ImageProcessor:
         parsed_response, token_counts, fully_validated = self.model.get_parsed_response(
             messages=messages,
             pydantic_model=self.pydantic_model,
-            max_n_retries=max_retries,
-            required_true_fields=require_true_fields,
-            **kwargs,
+            dry_run=False,
+            **parser_kwargs,
+            **model_kwargs,
         )
         if parsed_response is not None:
             response_content = self.pydantic_model.model_dump_json(parsed_response)
@@ -114,12 +104,13 @@ class ParallelImageProcessor:
         model_name: str,
         pydantic_model: type,
         results_dir: Path,
-        temperature: float | None = None,
-        max_retries: int = 5,
+        model_kwargs: dict | None = None,
+        parser_kwargs: dict | None = None,
         dry_run: bool = False,
         timeout: int = 300,
-        require_true_fields: list[str] | None = None,
     ) -> AggregatedTokenCounts:
+        model_kwargs = model_kwargs or {}
+        parser_kwargs = parser_kwargs or {}
         aggregated_token_counts = AggregatedTokenCounts()
         failed_images = []
         processor = ImageProcessor(model_name, pydantic_model, results_dir)
@@ -130,10 +121,9 @@ class ParallelImageProcessor:
                     name,
                     base64_image,
                     system_prompt,
-                    temperature,
-                    max_retries,
+                    model_kwargs,
+                    parser_kwargs,
                     dry_run,
-                    require_true_fields,
                 ): name
                 for name, base64_image in to_process.items()
             }

@@ -4,4 +4,6 @@ flow = {
     "model_name": "mistralai/mistral-small-3.2-24b-instruct:free",
     "description": "Provide a short description of the image",
     "external_file_options": {},
+    "model_kwargs": {},
+    "parser_kwargs": {},
 }
