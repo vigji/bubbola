@@ -495,6 +495,8 @@ if __name__ == "__main__":
     image = Image.new("RGB", (image_long_edge, image_long_edge), tuple(base_color))
     # Add random noise
     pixels = image.load()
+    # Ensure pixels is not None for mypy type checking
+    assert pixels is not None
     for x in range(image.width):
         for y in range(image.height):
             noise = random.randint(-10, 10)

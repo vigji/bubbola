@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
+from typing import cast
 
 import fitz  # PyMuPDF
 from PIL import Image
@@ -146,7 +147,8 @@ class PDFConverter:
             images.append(img)
 
         doc.close()
-        return images
+        # Cast to silence mypy complaining about ImageFile subtype
+        return cast(list[Image.Image], images)
 
     def _convert_pdf_bytes_to_images(self, pdf_bytes: bytes) -> list[Image.Image]:
         """Convert PDF bytes to list of PIL Images using PyMuPDF."""
@@ -165,7 +167,7 @@ class PDFConverter:
             images.append(img)
 
         doc.close()
-        return images
+        return cast(list[Image.Image], images)
 
 
 class ImageLoader:
@@ -279,7 +281,13 @@ def sanitize_to_images(
         result = {}
         for item in input_data:
             # Use a tuple of (item, max_edge_size, return_as_base64) as part of the cache key for each item
-            result.update(sanitize_to_images(item, return_as_base64, max_edge_size))
+            result.update(
+                sanitize_to_images(
+                    cast(str | Path | bytes | Image.Image | Iterable | None, item),
+                    return_as_base64,
+                    max_edge_size,
+                )
+            )
         return result
 
     # Handle folder input
@@ -359,7 +367,7 @@ def sanitize_to_images(
         loader = image_loader
 
     try:
-        images = loader.load(input_data)
+        images = cast(list[Image.Image | str], loader.load(input_data))
         result = {}
 
         # Handle single image case

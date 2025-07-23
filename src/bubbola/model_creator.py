@@ -75,13 +75,17 @@ class APIInterface(ABC):
         }
 
     @abstractmethod
-    def parse_response(self, response: Any, pydantic_model: BaseModel) -> Any:
+    def parse_response(self, response: Any, pydantic_model: type[BaseModel]) -> Any:
         """Parse and validate response content."""
         pass
 
     @abstractmethod
     def create_schema_request(
-        self, client: Any, messages: list[dict], pydantic_model: BaseModel, **kwargs
+        self,
+        client: Any,
+        messages: list[dict],
+        pydantic_model: type[BaseModel],
+        **kwargs,
     ) -> Any:
         """Create a request with schema validation."""
         pass
@@ -100,7 +104,7 @@ class LegacyAPI(APIInterface):
         return super().format_image_message(image_base64, use_new_api=False)
 
     @staticmethod
-    def parse_response(response: Any, pydantic_model: BaseModel) -> Any:
+    def parse_response(response: Any, pydantic_model: type[BaseModel]) -> Any:
         """Parse response from legacy API."""
         response_content = response.choices[0].message.content
 
@@ -125,7 +129,11 @@ class LegacyAPI(APIInterface):
             ) from e
 
     def create_schema_request(
-        self, client: Any, messages: list[dict], pydantic_model: BaseModel, **kwargs
+        self,
+        client: Any,
+        messages: list[dict],
+        pydantic_model: type[BaseModel],
+        **kwargs,
     ) -> Any:
         """Create request with JSON schema for legacy API."""
         return client.chat.completions.create(
@@ -155,12 +163,16 @@ class NewResponsesAPI(APIInterface):
         """Format image for new responses API."""
         return super().format_image_message(image_base64, use_new_api=True)
 
-    def parse_response(self, response: Any, pydantic_model: BaseModel) -> Any:
+    def parse_response(self, response: Any, pydantic_model: type[BaseModel]) -> Any:
         """Parse response from new responses API."""
         return response.output_parsed
 
     def create_schema_request(
-        self, client: Any, messages: list[dict], pydantic_model: BaseModel, **kwargs
+        self,
+        client: Any,
+        messages: list[dict],
+        pydantic_model: type[BaseModel],
+        **kwargs,
     ) -> Any:
         """Create request with text format for new responses API."""
         return client.responses.parse(
@@ -185,7 +197,7 @@ class NewResponsesAPI(APIInterface):
 @dataclass
 class LLMModel:
     name: str
-    client_class: type[OpenAI]
+    client_class: type[Any]
     base_url: str | None
     api_key_env_var: str
     use_new_responses_api: bool = False
@@ -238,12 +250,12 @@ class LLMModel:
         """Format an image for inclusion in messages."""
         return self.api_interface.format_image_message(image_base64)
 
-    def parse_response(self, response: Any, pydantic_model: BaseModel) -> Any:
+    def parse_response(self, response: Any, pydantic_model: type[BaseModel]) -> Any:
         """Parse and validate response content."""
         return self.api_interface.parse_response(response, pydantic_model)
 
     def create_schema_request(
-        self, messages: list[dict], pydantic_model: BaseModel, **kwargs
+        self, messages: list[dict], pydantic_model: type[BaseModel], **kwargs
     ) -> Any:
         """Create a request with schema validation."""
         return self.api_interface.create_schema_request(
@@ -257,7 +269,7 @@ class LLMModel:
     def get_parsed_response(
         self,
         messages: list[dict],
-        pydantic_model: BaseModel,
+        pydantic_model: type[BaseModel],
         max_n_retries: int = 5,
         dry_run: bool = False,
         required_true_fields: list[str] | None = None,
@@ -379,7 +391,7 @@ class LLMModel:
         self,
         instructions: str,
         images: list[str] | None = None,
-        pydantic_model: BaseModel | None = None,
+        pydantic_model: type[BaseModel] | None = None,
         max_n_retries: int = 5,
         dry_run: bool = False,
         **kwargs,
