@@ -27,14 +27,12 @@ class ProcessingFlow:
         description: str = "",
         external_file_options: dict[str, str] | None = None,
     ):
-        print("INITIALIZING")
         self.name = name
         self.data_model = data_model
         self.system_prompt = system_prompt
         self.model_name = model_name
         self.description = description
         self.external_file_options = external_file_options or {}
-        print("INITIALIZED")
 
 
 class BatchProcessor:
@@ -65,8 +63,7 @@ class BatchProcessor:
         self, flow_config: dict[str, Any], external_files: dict[str, Path] | None = None
     ) -> ProcessingFlow:
         """Convert a flow configuration dictionary to a ProcessingFlow object."""
-        print("...")
-        a = ProcessingFlow(
+        return ProcessingFlow(
             name=flow_config["name"],
             data_model=self.available_models[flow_config["data_model"]],
             system_prompt=flow_config["system_prompt"],
@@ -74,8 +71,6 @@ class BatchProcessor:
             description=flow_config["description"],
             external_file_options=flow_config.get("external_file_options"),
         )
-        print(a)
-        return a
 
     def list_flows(self) -> list[ProcessingFlow]:
         """List all available processing flows."""
@@ -319,7 +314,14 @@ class BatchProcessor:
             "dry_run": dry_run,
             "actual_cost": actual_cost,
         }
-        if flow_config_dict is not None:
+
+        # Capture the current flow configuration (in case it was modified by grid search)
+        from bubbola.flows import get_flows
+
+        current_flows = get_flows()
+        if flow_name in current_flows:
+            current_flow_config = current_flows[flow_name]
+
             # Convert any Path objects to str for JSON serialization
             def _serialize(obj):
                 if isinstance(obj, Path):
@@ -330,7 +332,7 @@ class BatchProcessor:
                     return [_serialize(x) for x in obj]
                 return obj
 
-            log_data["flow_config"] = _serialize(flow_config_dict)
+            log_data["flow_config"] = _serialize(current_flow_config)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = output_dir / f"batch_log_{timestamp}.json"

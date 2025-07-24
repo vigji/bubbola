@@ -187,7 +187,6 @@ class BubbolaApp:
         debug = False
 
         i = 0
-        print(args)
         while i < len(args):
             if args[i] == "--input" and i + 1 < len(args):
                 input_path = Path(args[i + 1])
@@ -202,7 +201,6 @@ class BubbolaApp:
                 external_files["prices_csv"] = Path(args[i + 1])
                 i += 2
             elif args[i] == "--fattura" and i + 1 < len(args):
-                print("BAAAAA")
                 external_files["fattura"] = Path(args[i + 1])
                 i += 2
             elif args[i] in ["--yes", "-y"]:
@@ -214,7 +212,7 @@ class BubbolaApp:
             else:
                 print(f"Errore: Argomento sconosciuto: {args[i]}")
                 return 1
-        print(external_files)
+
         if not input_path:
             print("Errore: --input è obbligatorio per il comando extract")
             return 1
@@ -229,7 +227,6 @@ class BubbolaApp:
 
             # Always do a dry run first
             print("=== STIMA COSTI ===")
-            print(external_files)
             dry_run_result = processor.process_batch(
                 input_path=input_path,
                 flow_name=flow_name,
