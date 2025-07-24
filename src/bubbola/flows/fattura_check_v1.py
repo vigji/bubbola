@@ -76,7 +76,7 @@ Be rigorous: minor typos in descriptions may match, but numerical fields must be
             "max_n_retries": 1,
             "require_true_fields": [],  # "invoice_ddt_match", "all_items_in_ddt"],
         },
-        "max_edge_size": 512,
+        # "max_edge_size": 512,
     }
 
 

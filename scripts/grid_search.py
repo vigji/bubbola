@@ -27,10 +27,43 @@ class GridSearchRunner:
         flows_dict = get_flows()
         base_flow = flows_dict[flow_name].copy()
 
+        # Helper to set nested keys (supports keys with dots only)
+        def _set_nested(d: dict[str, Any], compound_key: str, val: Any) -> None:
+            """Set *compound_key* in dict *d* to *val*.
+
+            The *compound_key* can use "." as a separator to reference nested
+            dictionaries. For certain well-known parameters that don't contain
+            dots, we automatically map them to their expected nested locations.
+            """
+
+            # Handle special cases for known nested parameters
+            if compound_key == "reasoning_effort" and "model_kwargs" in d:
+                # Map reasoning_effort to model_kwargs.reasoning.effort
+                if "reasoning" not in d["model_kwargs"]:
+                    d["model_kwargs"]["reasoning"] = {}
+                d["model_kwargs"]["reasoning"]["effort"] = val
+                return
+
+            # For dot-notation, split and navigate
+            if "." in compound_key:
+                parts = compound_key.split(".")
+                curr: dict[str, Any] | None = d
+                for part in parts[:-1]:
+                    if part not in curr or not isinstance(curr[part], dict):
+                        curr[part] = {}
+                    curr = curr[part]  # type: ignore[assignment]
+                curr[parts[-1]] = val
+            else:
+                # Single key - set directly
+                d[compound_key] = val
+
         # Apply parameter modifications
         for key, value in parameters.items():
             if key in base_flow:
                 base_flow[key] = value
+            else:
+                # Attempt to set nested value (e.g. reasoning_effort)
+                _set_nested(base_flow, key, value)
 
         return base_flow
 
@@ -46,24 +79,23 @@ class GridSearchRunner:
         run_dir = self.base_output_dir / f"exp{experiment_id:03d}"
         run_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create flow with parameters
-        flow_config = self.create_flow_with_parameters(flow_name, parameters)
+        # Modify the target flow **in-place** so that BatchProcessor picks up
+        # the changed configuration without needing to patch get_flow(). We
+        # keep a deep copy of the original configuration so it can be
+        # restored afterwards.
 
-        # Temporarily override the flow
+        import copy
+
         flows_dict = get_flows()
         original_flow = flows_dict[flow_name]
+        original_flow_backup = copy.deepcopy(original_flow)
 
-        class TempFlow:
-            @staticmethod
-            def get_flow(external_files=None):
-                return flow_config
-
-        # Override the flow module
-        import sys
-
-        flow_module = sys.modules[f"bubbola.flows.{flow_name}"]
-        original_get_flow = flow_module.get_flow
-        flow_module.get_flow = TempFlow.get_flow
+        # Apply the parameter modifications directly on the original dict so
+        # that all references (including in bubbola.flows._flows_dict and the
+        # module-level `flow`) see the changes.
+        modified_flow = self.create_flow_with_parameters(flow_name, parameters)
+        original_flow.clear()
+        original_flow.update(modified_flow)
 
         try:
             start_time = time.time()
@@ -96,8 +128,9 @@ class GridSearchRunner:
             return experiment_info
 
         finally:
-            # Restore original flow
-            flow_module.get_flow = original_get_flow
+            # Restore the original flow configuration
+            original_flow.clear()
+            original_flow.update(original_flow_backup)
 
     def run_grid_search(
         self,
@@ -137,7 +170,7 @@ class GridSearchRunner:
 
             for run in range(runs_per_combination):
                 print(f"Exp {experiment_id:03d}: {parameters}")
-
+                    
                 try:
                     result = self.run_single_experiment(
                         experiment_id=experiment_id,
@@ -190,6 +223,7 @@ def main():
     )
     parser.add_argument("--suppliers-csv", type=Path, help="Path to suppliers CSV file")
     parser.add_argument("--prices-csv", type=Path, help="Path to prices CSV file")
+    parser.add_argument("--fattura", type=Path, help="Path to fattura XML file")
 
     # Dynamic parameter arguments
     parser.add_argument(
@@ -230,6 +264,9 @@ def main():
         external_files["suppliers_csv"] = args.suppliers_csv
     if args.prices_csv and args.prices_csv.exists():
         external_files["prices_csv"] = args.prices_csv
+    if args.fattura and args.fattura.exists():
+        external_files["fattura"] = args.fattura
+
 
     # Create and run grid search
     runner = GridSearchRunner(args.output_dir)
