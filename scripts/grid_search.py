@@ -25,7 +25,7 @@ class GridSearchRunner:
     ) -> dict[str, Any]:
         """Create a flow configuration with modified parameters."""
         flows_dict = get_flows()
-        base_flow = flows_dict[flow_name].copy()
+        base_flow = flows_dict[flow_name].copy()  # Create a copy to modify
 
         # Helper to set nested keys (supports keys with dots only)
         def _set_nested(d: dict[str, Any], compound_key: str, val: Any) -> None:

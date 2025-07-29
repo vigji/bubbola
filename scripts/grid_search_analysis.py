@@ -222,7 +222,7 @@ def load_all_results_tables(output_dir: Path, experiments_df: pd.DataFrame) -> t
 
 
 # %%
-output_dir = Path("/Users/vigji/Desktop/pages_sample-data/concrete/grid_search/output_large_grid_final")
+output_dir = Path("/Users/vigji/Desktop/pages_sample-data/concrete/grid_search/output_large_grid_final_test")
 ground_truth_path = Path("/Users/vigji/Desktop/pages_sample-data/concrete/grid_search/data/ground_truth/main_table_fixed.csv")
 
 print("Starting grid search analysis...")
@@ -250,26 +250,36 @@ main_tables_df, items_tables_df = load_all_results_tables(output_dir, experiment
 print(f"Loaded {len(main_tables_df)} main table records across all experiments")
 print(f"Loaded {len(items_tables_df)} items table records across all experiments")
 
+
+# %%
 # Compare each experiment with ground truth and add metrics
-print("\n5. Comparing with ground truth...")
-accuracy_results = []
+# print("\n5. Comparing with ground truth...")
+# accuracy_results = []
 
-for _, exp_row in experiments_df.iterrows():
-    exp_id = exp_row['experiment_id']
+# for _, exp_row in experiments_df.iterrows():
+#     exp_id = exp_row['experiment_id']
     
-    # Get main table data for this experiment
-    exp_main_data = main_tables_df[main_tables_df['experiment_id'] == exp_id].copy()
+#     # Get main table data for this experiment
+#     exp_main_data = main_tables_df[main_tables_df['experiment_id'] == exp_id].copy()
     
-    # Compare with ground truth
-    accuracies = compare_with_ground_truth(exp_main_data, ground_truth_df)
-    accuracies['experiment_id'] = exp_id
-    accuracy_results.append(accuracies)
+#     # Compare with ground truth
+#     accuracies = compare_with_ground_truth(exp_main_data, ground_truth_df)
+#     accuracies['experiment_id'] = exp_id
+#     accuracy_results.append(accuracies)
 
-# Merge accuracy results back to experiments dataframe
-accuracy_df = pd.DataFrame(accuracy_results)
-if not accuracy_df.empty:
-    experiments_df = experiments_df.merge(accuracy_df, on='experiment_id', how='left')
+# # Merge accuracy results back to experiments dataframe
+# accuracy_df = pd.DataFrame(accuracy_results)
+# if not accuracy_df.empty:
+#     experiments_df = experiments_df.merge(accuracy_df, on='experiment_id', how='left')
 
 # %%
 accuracy_df
+# %%
+exp_main_data
+# %%
+ground_truth_df
+# %%
+main_tables_df
+# %%
+experiments_df
 # %%

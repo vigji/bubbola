@@ -103,13 +103,12 @@ class BatchProcessor:
         if flow_name in flows_dict:
             flow_config = flows_dict[flow_name]
             try:
-                # If we have external files, we need to call get_flow() with them
+                # If we have external files, apply them to the existing config
+                # instead of calling get_flow() which would overwrite modifications
                 if external_files:
-                    module = __import__(
-                        f"bubbola.flows.{flow_name}", fromlist=["get_flow"]
+                    flow_config = self._apply_external_files_to_config(
+                        flow_name, flow_config, external_files
                     )
-                    if hasattr(module, "get_flow"):
-                        flow_config = module.get_flow(external_files)
                 flow_obj = self._flow_config_to_processing_flow(
                     flow_config, external_files
                 )
@@ -124,11 +123,9 @@ class BatchProcessor:
             try:
                 if flow_config.get("name") == flow_name:
                     if external_files:
-                        module = __import__(
-                            f"bubbola.flows.{module_name}", fromlist=["get_flow"]
+                        flow_config = self._apply_external_files_to_config(
+                            module_name, flow_config, external_files
                         )
-                        if hasattr(module, "get_flow"):
-                            flow_config = module.get_flow(external_files)
                     flow_obj = self._flow_config_to_processing_flow(
                         flow_config, external_files
                     )
@@ -139,6 +136,28 @@ class BatchProcessor:
                 print(f"Error checking flow {module_name}: {e}")
                 continue
         return (None, None) if return_config else None
+
+    def _apply_external_files_to_config(
+        self, flow_name: str, flow_config: dict, external_files: dict[str, Path]
+    ) -> dict:
+        """Apply external files to an existing flow configuration without overwriting other modifications."""
+        import copy
+
+        # Work on a copy to avoid modifying the original
+        config = copy.deepcopy(flow_config)
+
+        # Get the fresh config from the module to see what external files would change
+        try:
+            module = __import__(f"bubbola.flows.{flow_name}", fromlist=["get_flow"])
+            if hasattr(module, "get_flow"):
+                fresh_config = module.get_flow(external_files)
+                # Only update the system_prompt, which is what external files typically modify
+                if "system_prompt" in fresh_config:
+                    config["system_prompt"] = fresh_config["system_prompt"]
+        except Exception as e:
+            print(f"Warning: Could not apply external files to {flow_name}: {e}")
+
+        return config
 
     def process_batch(
         self,

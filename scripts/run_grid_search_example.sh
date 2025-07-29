@@ -9,13 +9,13 @@ source .venv/bin/activate
 # Example 1: Original use case - model and reasoning effort
 echo "=== Example 1: Model and reasoning effort comparison ==="
 uv run python scripts/grid_search.py \
-    /Users/vigji/Desktop/pages_sample-data/concrete_old/grid_search/test_pages.pdf \
+    /Users/vigji/Desktop/pages_sample-data/concrete/grid_search/data/test_pages_mini.pdf \
     fattura_check_v1 \
-    --param model_name "o4-mini,o3" \
-    --param model_kwargs.reasoning.effort "low,medium,high" \
-    --runs 10 \
-    --output-dir /Users/vigji/Desktop/pages_sample-data/concrete_old/grid_search/output_large_grid_final \
-    --fattura /Users/vigji/Desktop/pages_sample-data/concrete_old/grid_search/fattura.xml
+    --param model_name "o4-mini" \
+    --param model_kwargs.reasoning.effort "medium" \
+    --runs 1 \
+    --output-dir /Users/vigji/Desktop/pages_sample-data/concrete/grid_search/output_large_grid_final_test3 \
+    --fattura /Users/vigji/Desktop/pages_sample-data/concrete/grid_search/data/fattura.xml
 
 uv run python scripts/grid_search.py \
     /Users/vigji/Desktop/pages_sample-data/concrete_old/grid_search/test_pages.pdf \

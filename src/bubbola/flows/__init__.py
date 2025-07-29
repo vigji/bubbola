@@ -64,4 +64,4 @@ def get_flows() -> dict[str, Any]:
     Returns:
         Dictionary mapping module names to their flow configurations
     """
-    return _flows_dict.copy()
+    return _flows_dict
