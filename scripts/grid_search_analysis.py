@@ -6,6 +6,9 @@ import json
 import pandas as pd
 from pathlib import Path
 from typing import Any
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def load_experiment_data(output_dir: Path) -> pd.DataFrame:
@@ -35,8 +38,14 @@ def load_experiment_data(output_dir: Path) -> pd.DataFrame:
                 flattened_data[key] = value
         
         experiments.append(flattened_data)
+
+
     
-    return pd.DataFrame(experiments)
+    df = pd.DataFrame(experiments)
+    df.rename(columns={"param_model_name": "model_name",
+                       "param_model_kwargs.reasoning.effort": "effort"}, inplace=True)
+    
+    return df
 
 
 def load_batch_log_data(output_dir: Path, experiments_df: pd.DataFrame) -> pd.DataFrame:
@@ -222,7 +231,7 @@ def load_all_results_tables(output_dir: Path, experiments_df: pd.DataFrame) -> t
 
 
 # %%
-output_dir = Path("/Users/vigji/Desktop/pages_sample-data/concrete/grid_search/output_large_grid_final_test")
+output_dir = Path("/Users/vigji/Desktop/pages_sample-data/concrete/grid_search/output_large_grid_final6")
 ground_truth_path = Path("/Users/vigji/Desktop/pages_sample-data/concrete/grid_search/data/ground_truth/main_table_fixed.csv")
 
 print("Starting grid search analysis...")
@@ -247,39 +256,84 @@ print(f"Loaded ground truth with {len(ground_truth_df)} records")
 # Load all results tables
 print("\n4. Loading all results tables...")
 main_tables_df, items_tables_df = load_all_results_tables(output_dir, experiments_df)
+with pd.option_context("future.no_silent_downcasting", True):
+    main_tables_df = main_tables_df.fillna(False).infer_objects(copy=False)
+    items_tables_df = items_tables_df.fillna(False).infer_objects(copy=False)
+
 print(f"Loaded {len(main_tables_df)} main table records across all experiments")
 print(f"Loaded {len(items_tables_df)} items table records across all experiments")
 
+experiments_df["cost_per_page"] = experiments_df["actual_cost"] / 5
+
+true_file_ids = ["test_pages_002", "test_pages_003", "test_pages_004"]
+invalid_file_ids = ["test_pages_001", "test_pages_005"]
+all_items_correct_pages = ["test_pages_002", "test_pages_003"]
+all_items_incorrect_pages = ["test_pages_004"]
+metrics = []
+for exp_id, exp_main_table in main_tables_df.groupby("experiment_id"):
+    valid_id_count = np.mean(exp_main_table[exp_main_table["file_id"].isin(true_file_ids)]["ddt_number"].values == ground_truth_df[ground_truth_df["file_id"].isin(true_file_ids)]["ddt_number"].values)
+    valid_match_assessment = np.mean(exp_main_table[exp_main_table["file_id"].isin(true_file_ids)]["invoice_ddt_match"].values == ground_truth_df[ground_truth_df["file_id"].isin(true_file_ids)]["invoice_ddt_match"].values)
+    invalid_match_assessment = np.mean(exp_main_table[exp_main_table["file_id"].isin(invalid_file_ids)]["invoice_ddt_match"].values == ground_truth_df[ground_truth_df["file_id"].isin(invalid_file_ids)]["invoice_ddt_match"].values)
+    all_items_in_ddt_accuracy = np.mean(exp_main_table[exp_main_table["file_id"].isin(all_items_correct_pages)]["all_items_in_ddt"].values == ground_truth_df[ground_truth_df["file_id"].isin(all_items_correct_pages)]["all_items_in_ddt"].values)
+    all_items_in_ddt_incorrect_accuracy = np.mean(exp_main_table[exp_main_table["file_id"].isin(all_items_incorrect_pages)]["all_items_in_ddt"].values == ground_truth_df[ground_truth_df["file_id"].isin(all_items_incorrect_pages)]["all_items_in_ddt"].values)
+    metrics.append(dict(experiment_id=exp_id, 
+                        valid_id_count=valid_id_count, 
+                        valid_match_assessment=valid_match_assessment, 
+                        invalid_match_assessment=invalid_match_assessment,
+                        all_items_in_ddt_accuracy=all_items_in_ddt_accuracy,
+                        all_items_in_ddt_incorrect_accuracy=all_items_in_ddt_incorrect_accuracy))
+
+metrics_df = pd.DataFrame(metrics)
+metrics_df.set_index("experiment_id", inplace=True)
+experiments_df = experiments_df.merge(metrics_df, on="experiment_id", how="left")
+
+wrong_ids = experiments_df.loc[~(experiments_df["all_items_in_ddt_incorrect_accuracy"].astype(bool)), "experiment_id"].values
+
+dfs = main_tables_df.loc[main_tables_df["experiment_id"].isin(wrong_ids) & (main_tables_df["file_id"] == "test_pages_004"), "all_items_in_ddt"]
+for df in dfs:
+    print(df)
+    print("-"*100)
 
 # %%
-# Compare each experiment with ground truth and add metrics
-# print("\n5. Comparing with ground truth...")
-# accuracy_results = []
+sns.lineplot(data=experiments_df, x="effort", y="cost_per_page", hue="model_name", marker="o")
+plt.title("Cost per Page vs Effort by Model")
+plt.show()
 
-# for _, exp_row in experiments_df.iterrows():
-#     exp_id = exp_row['experiment_id']
-    
-#     # Get main table data for this experiment
-#     exp_main_data = main_tables_df[main_tables_df['experiment_id'] == exp_id].copy()
-    
-#     # Compare with ground truth
-#     accuracies = compare_with_ground_truth(exp_main_data, ground_truth_df)
-#     accuracies['experiment_id'] = exp_id
-#     accuracy_results.append(accuracies)
-
-# # Merge accuracy results back to experiments dataframe
-# accuracy_df = pd.DataFrame(accuracy_results)
-# if not accuracy_df.empty:
-#     experiments_df = experiments_df.merge(accuracy_df, on='experiment_id', how='left')
-
+# %%
+sns.lineplot(data=experiments_df, x="effort", y="valid_id_count", hue="model_name", marker="o")
+plt.title("Valid ID Count vs Effort by Model")
+plt.show()
 # %%
-accuracy_df
+sns.lineplot(data=experiments_df, x="effort", y="valid_match_assessment", hue="model_name", marker="o")
+plt.title("Valid Match Assessment vs Effort by Model")
+plt.show()
 # %%
-exp_main_data
+sns.lineplot(data=experiments_df, x="effort", y="invalid_match_assessment", hue="model_name", marker="o")
+plt.title("Invalid Match Assessment vs Effort by Model")
+plt.show()
+# %%
+# %%
+sns.lineplot(data=experiments_df, x="effort", y="all_items_in_ddt_accuracy", hue="model_name", marker="o")
+plt.title("All Items in DDT Accuracy vs Effort by Model")
+plt.show()
+# %%
+sns.lineplot(data=experiments_df, x="effort", y="all_items_in_ddt_incorrect_accuracy", hue="model_name", marker="o")
+plt.title("All Items in DDT Incorrect Accuracy vs Effort by Model")
+plt.show()
 # %%
 ground_truth_df
 # %%
-main_tables_df
+wrong_ids = experiments_df.loc[~(experiments_df["all_items_in_ddt_incorrect_accuracy"].astype(bool)), "experiment_id"].values
+
+dfs = main_tables_df.loc[main_tables_df["experiment_id"].isin(wrong_ids) & (main_tables_df["file_id"] == "test_pages_004"), "all_items_in_ddt"]
+for df in dfs:
+    print(df)
+    print("-"*100)
 # %%
-experiments_df
+# %%
+wrong_ids
+# %%
+main_tables_df["experiment_id"]
+# %%
+main_tables_df
 # %%

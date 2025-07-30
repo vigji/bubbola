@@ -215,6 +215,10 @@ class LLMModel:
     @property
     def client(self):
         client = self.client_class(api_key=self.api_key, base_url=self.base_url)
+        print(f"client: {client}")
+        print(f"self.name: {self.name}")
+        print(f"self.base_url: {self.base_url}")
+        print(f"self.api_key: {self.api_key}")
         client.model_name = self.name
         return client
 
@@ -233,6 +237,7 @@ class LLMModel:
             from bubbola.config import get_required
 
             token_value = get_required(self.api_key_env_var)
+            print(f"token_value: {token_value}")
             if (
                 not token_value
                 or token_value == f"your_{self.api_key_env_var.lower()}_here"
@@ -524,7 +529,7 @@ def get_model_client(required_model: str, force_openrouter=False):
 
 if __name__ == "__main__":
     # Test different model types
-    for model_name in list(MODEL_NAME_TO_CLASS_MAP.keys())[:3]:
+    for model_name in list(MODEL_NAME_TO_CLASS_MAP.keys()):
         print(f"\nTesting model: {model_name}")
         try:
             client = get_model_client(model_name)
