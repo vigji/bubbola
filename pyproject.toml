@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bubbola"
-version = "0.1.0"
+dynamic = ["version"]
 description = "A Python application with executable distribution"
 authors = [
     {name = "Luigi Petrucco", email = "luigi.petrucco@gmail.com"}
@@ -47,6 +47,9 @@ bubbola = "bubbola:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "bubbola.__version__"}
 
 [tool.ruff]
 target-version = "py311"

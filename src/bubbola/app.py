@@ -1,33 +1,43 @@
 """Application logic for Bubbola."""
 
+import logging
 from pathlib import Path
 
 from bubbola.config import load_config
 
 
 class BubbolaApp:
-    """Main application class for Bubbola."""
+    """
+    Main application class for Bubbola.
+
+    This class orchestrates the main functionality of the application,
+    including command processing and logging.
+    """
 
     def __init__(self) -> None:
-        """Initialize the application."""
-        # Load configuration (this will create the template if it doesn't exist)
-        load_config()
-
-        # Try to get home directory, fallback to current directory if it fails
-        try:
-            home_dir = Path.home()
-            self.config_path = home_dir / ".bubbola" / "config.json"
-        except (RuntimeError, OSError):
-            # Fallback for CI environments where home directory cannot be determined
-            self.config_path = Path.cwd() / ".bubbola" / "config.json"
-
-        self.config_path.parent.mkdir(exist_ok=True)
+        """Initialize the BubbolaApp."""
+        self.config = load_config()
 
     def run(self, argv: list[str]) -> int:
         """Run the application with given arguments."""
+        # Log version information at startup
+        from bubbola import __version__
+
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - Bubbola v%(version)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        logger = logging.getLogger(__name__)
+
+        # Add version to log records
+        logging.LoggerAdapter(logger, {"version": __version__}).info(
+            f"Starting Bubbola v{__version__}"
+        )
+
         if not argv:
-            print("Bubbola - Un'applicazione Python")
-            print("Utilizzo: bubbola <comando> [opzioni]")
+            print("Utilizzo: bubbola <comando> [argomenti]")
+            print("Per vedere tutti i comandi disponibili: bubbola help")
             return 0
 
         command = argv[0]

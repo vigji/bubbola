@@ -9,6 +9,13 @@
 
 A Python application for PDF and image processing with AI-powered text recognition and analysis. The tool processes documents to identify and extract relevant information such as measurements, specifications, and other technical data, focusing on delivery notes.
 
+**✨ Key Features:**
+- 🔧 **Cross-platform Binary Distribution** - Standalone executables for macOS, Windows, and Linux
+- 🚀 **Automated Release Pipeline** - Complete CI/CD with testing and GitHub releases  
+- 📊 **Semantic Versioning** - Professional version management with single source of truth
+- 🛡️ **Quality Assurance** - Comprehensive testing, linting, and type checking
+- 🏗️ **Modern Development Stack** - Built with uv, ruff, pytest, and GitHub Actions
+
 It features an executable distribution using PyInstaller.
 
 ## Istruzioni
@@ -271,26 +278,130 @@ The workflow builds for:
 - **Windows 2022**: x64 architecture  
 - **Ubuntu 22.04**: x64 architecture
 
+## Release Management
+
+Bubbola follows **Semantic Versioning (SemVer)** with a streamlined release process designed for small projects.
+
+### Version Strategy
+
+- **Format**: `MAJOR.MINOR.PATCH` (e.g., `1.2.3`)
+- **Single Source of Truth**: Version defined in `src/bubbola/__init__.py`
+- **Automatic Sync**: `pyproject.toml` imports version dynamically
+- **Git Tags**: Drive the release process (format: `v1.2.3`)
+
+### Version Management Script
+
+Use the built-in version manager for all version operations:
+
+```bash
+# Check current version
+python3 scripts/version_manager.py current
+# OR using uv:
+uv run python scripts/version_manager.py current
+
+# Bump patch version (1.0.0 → 1.0.1)
+python3 scripts/version_manager.py bump patch
+
+# Bump minor version (1.0.1 → 1.1.0)  
+python3 scripts/version_manager.py bump minor
+
+# Bump major version (1.1.0 → 2.0.0)
+python3 scripts/version_manager.py bump major
+
+# Set specific version
+python3 scripts/version_manager.py set 1.5.2
+```
+
 ### Creating Releases
 
-To create a new release with binaries:
+#### **Method 1: Automatic (Recommended)**
+```bash
+# Bump version, commit, tag, and push in one step
+python3 scripts/version_manager.py bump patch --push
 
-1. **Create and push a tag:**
+# This will:
+# 1. Update version in both files
+# 2. Commit changes to git
+# 3. Create and push git tag
+# 4. Trigger GitHub Actions release workflow
+```
+
+#### **Method 2: Manual Control**
+```bash
+# Bump version without git operations
+python3 scripts/version_manager.py bump minor --no-commit --no-tag
+
+# Review changes, then manually:
+git add src/bubbola/__init__.py pyproject.toml
+git commit -m "Bump version to 1.2.0"
+git tag v1.2.0
+git push origin main
+git push origin v1.2.0
+```
+
+### Release Pipeline (Automatic)
+
+When a tag is pushed (format `v*`), GitHub Actions automatically:
+
+1. **🔧 Build Phase**:
+   - Builds binaries for all platforms (macOS x64/ARM64, Windows x64, Linux x64)
+   - Runs comprehensive tests on each binary
+   - Only proceeds if **all tests pass**
+
+2. **🚀 Release Phase** (only after successful builds):
+   - Creates GitHub release with tag
+   - Attaches all platform binaries as release assets
+   - Binaries are permanently archived and downloadable
+
+### Accessing Released Binaries
+
+- **GitHub Releases**: https://github.com/vigji/bubbola/releases
+- **Direct Download**: Each release provides platform-specific binaries
+- **Asset Names**: `bubbola-{platform}-{arch}` (e.g., `bubbola-macos-arm64`)
+
+### Version Logging
+
+Every application run logs the version for tracking:
+```
+2025-01-XX XX:XX:XX - Bubbola v1.2.3 - INFO - Starting Bubbola v1.2.3
+```
+
+This helps with debugging and support when users report issues.
+
+### Best Practices
+
+1. **Patch Releases** (`x.y.Z+1`): Bug fixes, small improvements
+2. **Minor Releases** (`x.Y+1.0`): New features, backwards compatible
+3. **Major Releases** (`X+1.0.0`): Breaking changes, significant updates
+
+4. **Always test locally** before releasing:
    ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
+   # Test current build
+   python scripts/build_binary.py
+   ./dist/bubbola version
+   ./dist/bubbola sanitize tests/assets/0088_001.pdf
    ```
 
-2. **GitHub Actions will automatically:**
-   - Build binaries for all platforms
-   - Create a GitHub release
-   - Attach all binaries to the release
+5. **Use descriptive commit messages** when bumping versions:
+   - The version manager automatically creates appropriate commit messages
+   - Manual commits should follow: `"Add feature X"` → `"Bump version to 1.1.0"`
 
-### Accessing Built Binaries
+### Troubleshooting Releases
 
-- **From GitHub Releases**: Download directly from the releases page
-- **From Actions Artifacts**: Available in the Actions tab for 30 days
-- **From Release Assets**: Named as `bubbola-{platform}-{arch}`
+**Release not triggered?**
+- Ensure tag format is `v1.2.3` (with `v` prefix)
+- Check GitHub Actions tab for workflow status
+- Verify you have push permissions to the repository
+
+**Binary tests failing?**
+- The pipeline will not create releases if binary tests fail
+- Check the build logs in GitHub Actions
+- Fix issues and create a new patch release
+
+**Version conflicts?**
+- Never manually edit version numbers in files
+- Always use `scripts/version_manager.py` to avoid sync issues
+- If needed, run the script with `--no-commit` to review changes first
 
 ## Continuous Integration (CI)
 
