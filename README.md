@@ -15,7 +15,7 @@ It features an executable distribution using PyInstaller.
 
 ### Utilizzo del Tool CLI
 
-Bubbola è un tool da riga di comando per l'elaborazione di PDF e immagini. Link per scaricare l'ultima versione qui.
+Bubbola è un tool da riga di comando per l'elaborazione di PDF e immagini. Link per scaricare l'ultima versione [qui](https://github.com/vigji/bubbola/releases/latest).
 
 #### Comandi Base
 
