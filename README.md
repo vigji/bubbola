@@ -333,10 +333,10 @@ python3 scripts/version_manager.py bump minor --no-commit --no-tag
 
 # Review changes, then manually:
 git add src/bubbola/__init__.py pyproject.toml
-git commit -m "Bump version to 1.2.0"
-git tag v1.2.0
+git commit -m "Bump version to X.X.X"  # change!!!
+git tag vX.X.X
 git push origin main
-git push origin v1.2.0
+git push origin vX.X.X
 ```
 
 ### Release Pipeline (Automatic)
@@ -467,39 +467,3 @@ uv run pytest --cov=src --cov-report=term-missing
    python scripts/build_binary.py
    ./dist/bubbola --help
    ```
-
-## Common Development Commands
-
-```bash
-# Installation and setup
-uv sync                    # Sync dependencies
-uv pip install -e ".[build]"  # Install in development mode
-
-# Testing
-uv run pytest             # Run all tests
-uv run pytest tests/test_specific.py  # Run specific test file
-
-# Code quality
-uv run ruff check src/ tests/     # Lint code
-uv run ruff format src/ tests/    # Format code
-uv run ruff check --fix src/ tests/  # Auto-fix issues
-
-# Building (use pip for better PyInstaller compatibility)
-pip install -e ".[build]"         # Install build dependencies
-python scripts/build_binary.py    # Build binary
-python scripts/build_binary.py --clean  # Clean build
-
-# Running the application
-uv run python -m bubbola.cli --help  # Run CLI with help
-uv run python -m bubbola.cli version  # Run specific command
-```
-
-## Configuration
-
-Bubbola uses a simple configuration system. Create your config file:
-
-```bash
-python scripts/setup_config.py
-```
-
-This creates `~/.bubbola/config.env` with your API keys. See [CONFIGURATION.md](CONFIGURATION.md) for details.

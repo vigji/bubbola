@@ -68,18 +68,28 @@ def update_init_file(new_version: str) -> None:
 
 
 def update_pyproject_toml(new_version: str) -> None:
-    """Update version in pyproject.toml"""
+    """Update version in pyproject.toml (or skip if using dynamic versioning)"""
     pyproject_file = Path("pyproject.toml")
     content = pyproject_file.read_text()
     
+    # Check if using dynamic versioning
+    if 'dynamic = ["version"]' in content:
+        print(f"Skipping {pyproject_file} - using dynamic versioning")
+        return
+    
+    # Only update if there's a static version field
     new_content = re.sub(
-        r'version = ["\'][^"\']+["\']',
+        r'^version = ["\'][^"\']+["\']',
         f'version = "{new_version}"',
-        content
+        content,
+        flags=re.MULTILINE
     )
     
-    pyproject_file.write_text(new_content)
-    print(f"Updated {pyproject_file}")
+    if new_content != content:
+        pyproject_file.write_text(new_content)
+        print(f"Updated {pyproject_file}")
+    else:
+        print(f"No version field found to update in {pyproject_file}")
 
 
 def create_git_tag(version: str, push: bool = False) -> None:

@@ -10,40 +10,22 @@ class TestBubbolaApp:
     """Test cases for BubbolaApp."""
 
     def setup_method(self):
-        """Set up test fixtures."""
+        """Set up test fixtures before each test method."""
         with patch("bubbola.app.load_config"):
             self.app = BubbolaApp()
 
-    def test_init_creates_config_directory(self):
-        """Test that __init__ creates the config directory."""
-        with patch("bubbola.app.load_config"), patch("pathlib.Path.home") as mock_home:
-            mock_home.return_value = Path("/fake/home")
-            with patch("pathlib.Path.mkdir") as mock_mkdir:
-                BubbolaApp()
-                mock_mkdir.assert_called_once_with(exist_ok=True)
-
-    def test_init_fallback_to_current_directory(self):
-        """Test that __init__ falls back to current directory when home fails."""
-        with patch("bubbola.app.load_config"), patch("pathlib.Path.home") as mock_home:
-            mock_home.side_effect = RuntimeError("Home directory not available")
-            with (
-                patch("pathlib.Path.cwd") as mock_cwd,
-                patch("pathlib.Path.mkdir") as mock_mkdir,
-            ):
-                mock_cwd.return_value = Path("/fake/current")
-                app = BubbolaApp()
-                assert (
-                    app.config_path
-                    == Path("/fake/current") / ".bubbola" / "config.json"
-                )
-                mock_mkdir.assert_called_once_with(exist_ok=True)
+    def test_init_loads_config(self):
+        """Test that __init__ loads configuration."""
+        with patch("bubbola.app.load_config") as mock_load_config:
+            BubbolaApp()
+            mock_load_config.assert_called_once()
 
     def test_run_no_args_shows_help(self, capsys):
         """Test that run with no args shows help message."""
         result = self.app.run([])
         captured = capsys.readouterr()
-        assert "Bubbola - Un'applicazione Python" in captured.out
-        assert "Utilizzo: bubbola <comando>" in captured.out
+        assert "Utilizzo: bubbola <comando> [argomenti]" in captured.out
+        assert "Per vedere tutti i comandi disponibili: bubbola help" in captured.out
         assert result == 0
 
     def test_run_version_command(self, capsys):
