@@ -135,32 +135,32 @@ def parse_hierarchical_json(
         def process_level(obj, parent_context, level_idx, file_id):
             row = {"file_id": file_id}
             row.update(parent_context)
+
+            # Add all non-list fields to the current row
             for k, v in obj.items():
                 if not (
                     isinstance(v, list) and v and all(isinstance(i, dict) for i in v)
                 ):
                     row[k] = v
-                # Always set n_{field} for all expected lower hierarchy fields at this level
-                if level_idx < len(expected_hierarchy_fields):
-                    for field in expected_hierarchy_fields[level_idx]:
-                        items = obj.get(field)
-                        if not (
-                            isinstance(items, list)
-                            and all(isinstance(i, dict) for i in items)
-                        ):
-                            n_items = 0
-                            items = []
-                        else:
-                            n_items = len(items)
-                        row[f"n_{field}"] = n_items
-                        # Only recurse if items is a non-empty list of dicts
-                        for item in items:
-                            child_context = {
-                                f"{flat_level_names[level_idx]}_{k}": v
-                                for k, v in row.items()
-                            }
-                            process_level(item, child_context, level_idx + 1, file_id)
+
+            # Add the current row to the level data
             level_data[level_idx].append(row)
+
+            # Process child items if we have hierarchy fields at this level
+            if level_idx < len(expected_hierarchy_fields):
+                for field in expected_hierarchy_fields[level_idx]:
+                    items = obj.get(field, [])
+                    if isinstance(items, list) and all(
+                        isinstance(i, dict) for i in items
+                    ):
+                        # Create complete context for all child items
+                        child_context = {
+                            f"{flat_level_names[level_idx]}_{k}": v
+                            for k, v in row.items()
+                        }
+                        # Process each child item with the complete context
+                        for item in items:
+                            process_level(item, child_context, level_idx + 1, file_id)
 
         process_level(content, {}, 0, file_id)
 
@@ -190,7 +190,7 @@ def parse_hierarchical_json(
 
 if __name__ == "__main__":
     results_dir = Path(
-        "/Users/vigji/Desktop/pages_sample-data/concrete_fixed/1502/results/fattura_check_v1_20250722_134952"
+        "/Users/vigji/Desktop/pages_sample-data/concrete/results/fattura_check_v1_20250731_130912"
     )
 
     print("=== Example: Automatic hierarchy detection ===")
