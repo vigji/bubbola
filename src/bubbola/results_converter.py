@@ -4,6 +4,29 @@ from pathlib import Path
 from typing import Any
 
 
+def _read_file_with_encoding_fallback(file_path: Path) -> str:
+    """
+    Read a file with encoding fallback to handle different encodings.
+
+    Tries UTF-8 first, then falls back to other common encodings.
+    This is particularly useful for Windows systems where files might
+    be saved with different encodings.
+    """
+    encodings = ["utf-8", "latin-1", "cp1252", "iso-8859-1"]
+
+    for encoding in encodings:
+        try:
+            with open(file_path, encoding=encoding) as f:
+                return f.read()
+        except UnicodeDecodeError:
+            continue
+
+    # If all encodings fail, try reading as bytes and decode with errors='replace'
+    with open(file_path, "rb") as f:
+        content = f.read()
+        return content.decode("utf-8", errors="replace")
+
+
 def infer_hierarchy_fields_from_json(obj: dict) -> list[str]:
     """
     Infer fields that are lists of dicts (i.e., lower hierarchies) from a JSON object.
@@ -41,11 +64,10 @@ def parse_hierarchical_json(
     # Find the first non-empty JSON file
     first_nonempty_content = None
     for json_file in json_files:
-        with open(json_file, encoding="utf-8") as f:
-            raw_content = f.read()
-            if raw_content.strip() and len(raw_content) > 2:
-                first_nonempty_content = raw_content
-                break
+        raw_content = _read_file_with_encoding_fallback(json_file)
+        if raw_content.strip() and len(raw_content) > 2:
+            first_nonempty_content = raw_content
+            break
     if first_nonempty_content is None:
         raise FileNotFoundError(
             f"All {FILE_PREFIX}*.json files in {results_dir} are empty. Cannot infer hierarchy."
@@ -88,39 +110,36 @@ def parse_hierarchical_json(
         expected_hierarchy_fields.append(fields)
 
     for json_file in json_files:
-        with open(json_file, encoding="utf-8") as f:
-            raw_content = f.read()
-            file_id = json_file.stem.replace(FILE_PREFIX, "")
-            if not raw_content.strip() or len(raw_content) < 2:
-                # Empty file: add a row with only file_id
-                level_data[0].append({"file_id": file_id})
-                print(
-                    f"Warning: {json_file} is empty. Added empty row for file_id {file_id}."
-                )
-                continue
-            try:
-                content = json.loads(raw_content)
-                if isinstance(content, str):
-                    content = json.loads(content)
+        raw_content = _read_file_with_encoding_fallback(json_file)
+        file_id = json_file.stem.replace(FILE_PREFIX, "")
+        if not raw_content.strip() or len(raw_content) < 2:
+            # Empty file: add a row with only file_id
+            level_data[0].append({"file_id": file_id})
+            print(
+                f"Warning: {json_file} is empty. Added empty row for file_id {file_id}."
+            )
+            continue
+        try:
+            content = json.loads(raw_content)
+            if isinstance(content, str):
+                content = json.loads(content)
 
-            except Exception as e:
-                # Failed to parse: treat as empty
-                level_data[0].append({"file_id": file_id})
-                print(
-                    f"Warning: Could not parse {json_file}: {e}. Added empty row for file_id {file_id}."
-                )
-                continue
+        except Exception as e:
+            # Failed to parse: treat as empty
+            level_data[0].append({"file_id": file_id})
+            print(
+                f"Warning: Could not parse {json_file}: {e}. Added empty row for file_id {file_id}."
+            )
+            continue
 
-            def process_level(obj, parent_context, level_idx, file_id):
-                row = {"file_id": file_id}
-                row.update(parent_context)
-                for k, v in obj.items():
-                    if not (
-                        isinstance(v, list)
-                        and v
-                        and all(isinstance(i, dict) for i in v)
-                    ):
-                        row[k] = v
+        def process_level(obj, parent_context, level_idx, file_id):
+            row = {"file_id": file_id}
+            row.update(parent_context)
+            for k, v in obj.items():
+                if not (
+                    isinstance(v, list) and v and all(isinstance(i, dict) for i in v)
+                ):
+                    row[k] = v
                 # Always set n_{field} for all expected lower hierarchy fields at this level
                 if level_idx < len(expected_hierarchy_fields):
                     for field in expected_hierarchy_fields[level_idx]:
@@ -141,9 +160,9 @@ def parse_hierarchical_json(
                                 for k, v in row.items()
                             }
                             process_level(item, child_context, level_idx + 1, file_id)
-                level_data[level_idx].append(row)
+            level_data[level_idx].append(row)
 
-            process_level(content, {}, 0, file_id)
+        process_level(content, {}, 0, file_id)
 
     for i, data in enumerate(level_data):
         print(f"Loaded {len(data)} {flat_level_names[i]} records")
