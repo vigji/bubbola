@@ -9,20 +9,13 @@
 
 A Python application for PDF and image processing with AI-powered text recognition and analysis. The tool processes documents to identify and extract relevant information such as measurements, specifications, and other technical data, focusing on delivery notes.
 
-**✨ Key Features:**
-- 🔧 **Cross-platform Binary Distribution** - Standalone executables for macOS, Windows, and Linux
-- 🚀 **Automated Release Pipeline** - Complete CI/CD with testing and GitHub releases  
-- 📊 **Semantic Versioning** - Professional version management with single source of truth
-- 🛡️ **Quality Assurance** - Comprehensive testing, linting, and type checking
-- 🏗️ **Modern Development Stack** - Built with uv, ruff, pytest, and GitHub Actions
-
 It features an executable distribution using PyInstaller.
 
 ## Istruzioni
 
 ### Utilizzo del Tool CLI
 
-Bubbola è un tool da riga di comando per l'elaborazione di PDF e immagini. Ecco i comandi principali:
+Bubbola è un tool da riga di comando per l'elaborazione di PDF e immagini. Link per scaricare l'ultima versione qui.
 
 #### Comandi Base
 
@@ -57,7 +50,7 @@ Altri parametri dipendono dal flusso utilizzato, ad esempio:
 
 **Nota:** Prima di utilizzare il tool, è necessario configurare le chiavi API. Vedi [CONFIGURATION.md](CONFIGURATION.md) per le istruzioni di configurazione.
 
-## Fussi implementati
+## Flussi implementati
 
 Di seguito elenco e istruzioni per i flussi implementati fino ad ora.
 
@@ -324,6 +317,8 @@ python3 scripts/version_manager.py bump patch --push
 # 2. Commit changes to git
 # 3. Create and push git tag
 # 4. Trigger GitHub Actions release workflow
+# 5. Build binaries for all platforms
+# 6. Create GitHub release with binaries attached
 ```
 
 #### **Method 2: Manual Control**
@@ -336,7 +331,7 @@ git add src/bubbola/__init__.py pyproject.toml
 git commit -m "Bump version to X.X.X"  # change!!!
 git tag vX.X.X
 git push origin main
-git push origin vX.X.X
+git push origin vX.X.X  # This triggers the release workflow
 ```
 
 ### Release Pipeline (Automatic)
@@ -350,14 +345,21 @@ When a tag is pushed (format `v*`), GitHub Actions automatically:
 
 2. **🚀 Release Phase** (only after successful builds):
    - Creates GitHub release with tag
-   - Attaches all platform binaries as release assets
+   - Attaches all platform binaries as release assets with clear naming
+   - Includes checksums file for binary verification
+   - Generates automatic release notes
    - Binaries are permanently archived and downloadable
 
 ### Accessing Released Binaries
 
 - **GitHub Releases**: https://github.com/vigji/bubbola/releases
 - **Direct Download**: Each release provides platform-specific binaries
-- **Asset Names**: `bubbola-{platform}-{arch}` (e.g., `bubbola-macos-arm64`)
+- **Asset Names**: 
+  - `bubbola-macos-x64` (macOS Intel)
+  - `bubbola-macos-arm64` (macOS Apple Silicon)
+  - `bubbola-windows-x64.exe` (Windows)
+  - `bubbola-linux-x64` (Linux)
+  - `checksums.txt` (SHA256 checksums for verification)
 
 ### Version Logging
 
@@ -386,6 +388,18 @@ This helps with debugging and support when users report issues.
    - The version manager automatically creates appropriate commit messages
    - Manual commits should follow: `"Add feature X"` → `"Bump version to 1.1.0"`
 
+6. **Verify releases** after creation:
+   ```bash
+   # Verify the latest release
+   python scripts/verify_release.py
+   
+   # Verify a specific release
+   python scripts/verify_release.py --tag v1.2.3
+   
+   # List recent releases
+   python scripts/verify_release.py --list
+   ```
+
 ### Troubleshooting Releases
 
 **Release not triggered?**
@@ -397,6 +411,11 @@ This helps with debugging and support when users report issues.
 - The pipeline will not create releases if binary tests fail
 - Check the build logs in GitHub Actions
 - Fix issues and create a new patch release
+
+**Missing binaries in release?**
+- Use the verification script to check release status
+- Ensure all build jobs completed successfully
+- Check that the release workflow ran (separate from build workflow)
 
 **Version conflicts?**
 - Never manually edit version numbers in files

@@ -184,6 +184,10 @@ def main() -> None:
         
         if not args.no_tag and not args.push:
             print(f"💡 To trigger release, run: git push origin v{new_version}")
+            print(f"   This will automatically build binaries and create a GitHub release")
+        elif not args.no_tag and args.push:
+            print(f"🚀 Release triggered! GitHub Actions will build binaries and create a release")
+            print(f"   Check the Actions tab for progress: https://github.com/vigji/bubbola/actions")
             
     except Exception as e:
         print(f"Error: {e}")
