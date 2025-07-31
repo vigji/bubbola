@@ -2,7 +2,7 @@
 
 import sys
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 __author__ = "Luigi Petrucco"
 __email__ = "luigi.petrucco@gmail.com"
 
