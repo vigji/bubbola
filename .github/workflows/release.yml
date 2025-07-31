@@ -1,14 +1,29 @@
-name: Build Binaries
+name: Release
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    tags: [ 'v*' ]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.0.0)'
+        required: false
+        default: ''
 
 jobs:
+  debug:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Debug information
+      run: |
+        echo "GitHub ref: ${{ github.ref }}"
+        echo "GitHub event name: ${{ github.event_name }}"
+        echo "GitHub ref type: ${{ github.ref_type }}"
+        echo "GitHub ref name: ${{ github.ref_name }}"
+        echo "Workflow dispatch tag: ${{ github.event.inputs.tag }}"
+
   build:
+    needs: debug
     strategy:
       fail-fast: false
       matrix:
@@ -91,4 +106,54 @@ jobs:
         fi
       shell: bash
 
- 
+  # Create release after all builds complete
+  create-release:
+    needs: build
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Prepare release assets
+      run: |
+        # Create a directory for release assets
+        mkdir -p release-assets
+        
+        # Copy and rename binaries for better organization
+        cp artifacts/bubbola-macos-x64/bubbola release-assets/bubbola-macos-x64
+        cp artifacts/bubbola-macos-arm64/bubbola release-assets/bubbola-macos-arm64
+        cp artifacts/bubbola-windows-x64/bubbola.exe release-assets/bubbola-windows-x64.exe
+        cp artifacts/bubbola-linux-x64/bubbola release-assets/bubbola-linux-x64
+        
+        # Make binaries executable
+        chmod +x release-assets/bubbola-macos-x64
+        chmod +x release-assets/bubbola-macos-arm64
+        chmod +x release-assets/bubbola-linux-x64
+        
+        # Create a checksums file for verification
+        cd release-assets
+        sha256sum bubbola-* > checksums.txt
+        echo "Release assets prepared:"
+        ls -la
+        cat checksums.txt
+
+    - name: Create release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          release-assets/bubbola-macos-x64
+          release-assets/bubbola-macos-arm64
+          release-assets/bubbola-windows-x64.exe
+          release-assets/bubbola-linux-x64
+          release-assets/checksums.txt
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
