@@ -7,11 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-A Python application for PDF and image processing with executable distribution using PyInstaller.
+A Python application for PDF and image processing with AI-powered text recognition and analysis. The tool processes documents to identify and extract relevant information such as measurements, specifications, and other technical data, focusing on delivery notes.
 
-Bubbola extracts structured data from PDF documents and images using AI-powered text recognition and analysis. The tool processes documents to identify and extract relevant information such as measurements, specifications, and other technical data.
-
-**Note:** The extraction process requires API keys to be configured before use. See [CONFIGURATION.md](CONFIGURATION.md) for setup instructions.
+It features an executable distribution using PyInstaller.
 
 ## Istruzioni
 
@@ -22,30 +20,19 @@ Bubbola è un tool da riga di comando per l'elaborazione di PDF e immagini. Ecco
 #### Comandi Base
 
 ```bash
-# Mostra l'aiuto
-bubbola --help
+bubbola --help  # help
 
-# Verifica la versione
-bubbola version ext
-```
+bubbola version ext  # versione
 
-#### Esempi di Utilizzo
+bubbola sanitize tests/assets/0088_001.pdf  # prepara un pdf per la lettura
+bubbola sanitize tests/assets/single_pages/0088_001_001.png  # prepara un'immagine per la lettura
+bubbola sanitize tests/assets/single_pages  # prepara i dati di una cartella intera per la lettura
 
-```bash
-# Elabora un PDF di test
-bubbola sanitize tests/assets/0088_001.pdf
-
-# Elabora un'immagine PNG
-bubbola sanitize tests/assets/single_pages/0088_001_001.png
-
-# Elabora con output personalizzato
-bubbola sanitize input.pdf --output ./risultati
-
-# Lista i flussi disponibili
+# Lista i flussi disponibili per il processamento delle immagine
 bubbola list
 
-# Estrai dati da immagini
-bubbola extract --input tests/assets/single_pages/ --flow small_test --yes
+# Processa i dati di una cartella (tests/assets/single_pages) usando il flusso small_test
+bubbola extract --input tests/assets/single_pages/ --flow small_test
 ```
 
 #### Opzioni Disponibili
@@ -54,11 +41,56 @@ bubbola extract --input tests/assets/single_pages/ --flow small_test --yes
 - `--max-size <pixels>`: Dimensione massima dell'edge in pixel (per sanitize)
 - `--input <path>`: Percorso ai file da elaborare (per extract)
 - `--flow <name>`: Nome del flusso da utilizzare (per extract)
-- `--suppliers-csv <file>`: File CSV fornitori (per extract)
-- `--prices-csv <file>`: File CSV prezzi (per extract)
 - `--yes, -y`: Procede automaticamente senza chiedere conferma (per extract)
 
+Altri parametri dipendono dal flusso utilizzato, ad esempio:
+- `--suppliers-csv <file>`: File CSV fornitori (per extract)
+- `--prices-csv <file>`: File CSV prezzi (per extract)
+- `--fattura <file>`: File XML con la fattura elettronica (per extract)
+
 **Nota:** Prima di utilizzare il tool, è necessario configurare le chiavi API. Vedi [CONFIGURATION.md](CONFIGURATION.md) per le istruzioni di configurazione.
+
+## Fussi implementati
+
+Di seguito elenco e istruzioni per i flussi implementati fino ad ora.
+
+### `small_parsing`
+
+Un test, produce semplicemente una breve descrizione dell'immagine.
+
+#### Esempio di utilizzo
+
+```bash
+bubbola extract --input /folder/with/pdfs --flow small_parsing
+```
+
+
+
+### `fattura_check_v1`
+
+Processa le immagini delle bolle relative a una fattura elettronica. Per ogni bolla, prova a verificare se il codice della bolla compare sulla fattura (con un fuzzy match), e se tutti gli articoli della fattura attribuiti alla bolla sono presenti nella bolla. Se le due condizioni non si verificano, la bolla viene analizzata di nuovo, fino a un max di `n_retries` tentativi (3 di default). In testing il modello configurato per il flow (`o4-mini` con reasoning effort `medium`) non ha mai allucinato un falso positivo, quindi la procedura "a retries" dovrebbe essere sicura.
+
+#### Esempio di utilizzo
+
+```bash
+bubbola extract --input /folder/with/pdfs --flow fattura_check_v1 --fattura /path/to/fattura_elettronica.xml
+```
+
+#### Output
+
+Il flusso produce una cartella di output dentro la cartella di input (a meno che non sia specificato un'altra cartella di output con l'opzione `--output`). Nella cartella si trova:
+
+- Per ogni pagina da processare:
+   - l'immagine mandata al modello per quella pagina, eventualmente ridimensionata
+   - un json con il risultato del modello per quella pagina
+- un file `main_table.json` con il risultato del modello per l'intera fattura
+- un file `items_table.json` con il risultato del modello per gli articoli della fattura
+- un logfile con la configurazione del flusso e i risultati del processo
+
+
+
+
+
 
 ## Developers
 
