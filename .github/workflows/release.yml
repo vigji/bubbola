@@ -3,27 +3,9 @@ name: Release
 on:
   push:
     tags: [ 'v*' ]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to release (e.g., v1.0.0)'
-        required: false
-        default: ''
 
 jobs:
-  debug:
-    runs-on: ubuntu-22.04
-    steps:
-    - name: Debug information
-      run: |
-        echo "GitHub ref: ${{ github.ref }}"
-        echo "GitHub event name: ${{ github.event_name }}"
-        echo "GitHub ref type: ${{ github.ref_type }}"
-        echo "GitHub ref name: ${{ github.ref_name }}"
-        echo "Workflow dispatch tag: ${{ github.event.inputs.tag }}"
-
   build:
-    needs: debug
     strategy:
       fail-fast: false
       matrix:
