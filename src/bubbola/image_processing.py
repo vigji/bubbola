@@ -47,11 +47,18 @@ class ImageProcessor:
             )
 
         # Extract parser-specific arguments
-        max_n_retries = parser_kwargs.pop("max_n_retries", 5)
-        required_true_fields = parser_kwargs.pop("require_true_fields", None)
+        max_n_retries = parser_kwargs.get("max_n_retries", 5)
+        required_true_fields = parser_kwargs.get("require_true_fields", None)
+
+        # Create a copy of parser_kwargs without the parser-specific arguments
+        model_kwargs_from_parser = {
+            k: v
+            for k, v in parser_kwargs.items()
+            if k not in ["max_n_retries", "require_true_fields"]
+        }
 
         # Any remaining parser_kwargs should be model arguments
-        model_kwargs.update(parser_kwargs)
+        model_kwargs.update(model_kwargs_from_parser)
 
         messages = self.model.create_messages(
             instructions=system_prompt, images=[base64_image]

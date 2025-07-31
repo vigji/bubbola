@@ -215,15 +215,12 @@ class LLMModel:
     @property
     def client(self):
         client = self.client_class(api_key=self.api_key, base_url=self.base_url)
-        print(f"client: {client}")
-        print(f"self.name: {self.name}")
-        print(f"self.base_url: {self.base_url}")
-        print(f"self.api_key: {self.api_key}")
         client.model_name = self.name
         return client
 
     def validate_token(self) -> None:
         """Validate that the required API token is available for this model.
+
 
         Raises:
             ValueError: If the required token is not available
@@ -310,7 +307,6 @@ class LLMModel:
         token_counts = TokenCounts(total_input_tokens=0, total_output_tokens=0)
         last_valid_response = None
         fully_validated = False
-
         for attempt in range(max_n_retries + 1):
             try:
                 response = self.create_schema_request(

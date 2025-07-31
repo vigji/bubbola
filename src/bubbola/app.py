@@ -17,23 +17,55 @@ class BubbolaApp:
     def __init__(self) -> None:
         """Initialize the BubbolaApp."""
         self.config = load_config()
+        self.logger: logging.Logger | None = None
+
+    def setup_file_logging(self, results_dir: Path) -> None:
+        """Set up file logging to save logs in the results directory.
+
+        Args:
+            results_dir: Path to the results directory where logs should be saved
+        """
+        if self.logger is None:
+            return
+
+        # Create log file path
+        log_file = results_dir / "bubbola.log"
+
+        # Create file handler
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(logging.INFO)
+
+        # Use same format as console logging
+        formatter = logging.Formatter(
+            fmt="%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        file_handler.setFormatter(formatter)
+
+        # Add file handler to logger
+        self.logger.addHandler(file_handler)
+
+        # Log that file logging is set up
+        self.logger.info(f"Logging to file: {log_file}")
 
     def run(self, argv: list[str]) -> int:
         """Run the application with given arguments."""
         # Log version information at startup
         from bubbola import __version__
 
+        # Set up basic logging
         logging.basicConfig(
             level=logging.INFO,
-            format="%(asctime)s - Bubbola v%(version)s - %(levelname)s - %(message)s",
+            format="%(asctime)s - %(levelname)s - %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
+
         logger = logging.getLogger(__name__)
 
-        # Add version to log records
-        logging.LoggerAdapter(logger, {"version": __version__}).info(
-            f"Starting Bubbola v{__version__}"
-        )
+        # Log startup with version (single message)
+        print(f"{__version__} - Starting Bubbola v{__version__}")
+
+        # Store logger for later use in setting up file logging
+        self.logger = logger
 
         if not argv:
             print("Utilizzo: bubbola <comando> [argomenti]")
@@ -242,6 +274,7 @@ class BubbolaApp:
                 flow_name=flow_name,
                 dry_run=True,
                 external_files=external_files if external_files else None,
+                app_instance=self,
             )
 
             if dry_run_result != 0:
@@ -256,6 +289,7 @@ class BubbolaApp:
                     flow_name=flow_name,
                     dry_run=False,
                     external_files=external_files if external_files else None,
+                    app_instance=self,
                 )
             else:
                 print("\n" + "=" * 50)
@@ -273,6 +307,7 @@ class BubbolaApp:
                             flow_name=flow_name,
                             dry_run=False,
                             external_files=external_files if external_files else None,
+                            app_instance=self,
                         )
                     else:
                         print("Elaborazione annullata dall'utente.")

@@ -170,6 +170,7 @@ class BatchProcessor:
         max_edge_size: int = 1000,
         dry_run: bool = False,
         external_files: dict[str, Path] | None = None,
+        app_instance: Any = None,
     ) -> int:
         """Process a batch of images using the specified flow."""
         # Get the processing flow and config dict
@@ -206,6 +207,10 @@ class BatchProcessor:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_dir = output_dir / f"{flow_name}_{timestamp}"
             output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Set up file logging if app instance is provided
+            if app_instance and hasattr(app_instance, "setup_file_logging"):
+                app_instance.setup_file_logging(output_dir)
 
         elif dry_run:
             # Use a temporary directory for dry run
